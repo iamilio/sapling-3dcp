@@ -1,0 +1,58 @@
+cff-version: 1.2.0
+message: "If you use Sapling, please cite it as below, and cite the papers listed under references as the source of the model."
+title: "Sapling: a buildability check for 3D concrete printing in Grasshopper"
+type: software
+version: 0.1.0
+date-released: 2026-11-09
+license: GPL-3.0-or-later
+authors:
+  - family-names: Akbarzadeh
+    given-names: Ali
+repository-code: "https://github.com/iamilio/sapling-3dcp"
+keywords:
+  - 3D concrete printing
+  - buildability
+  - elastic buckling
+  - plastic collapse
+  - Grasshopper
+references:
+  - type: article
+    title: "Mechanical performance of wall structures in 3D printing processes: theory, design tools and experiments"
+    authors:
+      - family-names: Suiker
+        given-names: A.S.J.
+    journal: "International Journal of Mechanical Sciences"
+    volume: 137
+    start: 145
+    end: 170
+    year: 2018
+    doi: 10.1016/j.ijmecsci.2018.01.010
+  - type: article
+    title: "Structural failure during extrusion-based 3D printing processes"
+    authors:
+      - family-names: Wolfs
+        given-names: R.J.M.
+      - family-names: Suiker
+        given-names: A.S.J.
+    journal: "International Journal of Advanced Manufacturing Technology"
+    volume: 104
+    start: 565
+    end: 584
+    year: 2019
+    doi: 10.1007/s00170-019-03844-6
+  - type: article
+    title: "Elastic buckling and plastic collapse during 3D concrete printing"
+    authors:
+      - family-names: Suiker
+        given-names: A.S.J.
+      - family-names: Wolfs
+        given-names: R.J.M.
+      - family-names: Lucas
+        given-names: S.M.
+      - family-names: Salet
+        given-names: T.A.M.
+    journal: "Cement and Concrete Research"
+    volume: 135
+    start: 106016
+    year: 2020
+    doi: 10.1016/j.cemconres.2020.106016
