@@ -1,5 +1,7 @@
 # Sapling
 
+**[Watch the 1-minute demo](https://youtu.be/vBs35CAS1EA)**
+
 **How tall can your print grow?** Sapling is a buildability check for 3D concrete printing in Rhino Grasshopper. Given a wall, a material and a print speed, it predicts the height at which the fresh wall fails during printing, and whether it fails by **elastic buckling** or **plastic collapse**.
 
 Sapling implements the parametric model developed at Eindhoven University of Technology by A.S.J. Suiker and co-workers. It is an independent implementation and is not affiliated with or endorsed by the authors.
@@ -54,6 +56,7 @@ Use sliders with at least four decimals for the curing rates, or type the values
 | `Mode` | `elastic buckling`, `plastic collapse` or `no failure predicted` |
 | `Report` | Text summary, including warnings |
 | `Preview` | The path extruded to the critical height |
+| `Shape` | Buckling mode along the height: 21 values from bottom to top, normalised to 1 (empty unless the wall buckles) |
 
 ## Quick check
 
@@ -66,7 +69,16 @@ Expected: elastic buckling at 247 mm, 26 layers. The paper predicts 27 and the t
 ## Examples
 
 - `examples/sapling_square_500.gh`: the quick check above.
+- `examples/sapling_preview.gh`: the quick check with the animated preview connected (see below).
 - `examples/sapling_long_wall_quadratic.gh`: the 10.4 m free wall of Wolfs & Suiker (2019), with linear and quadratic curing side by side (24 and 48 layers; the printed wall failed at 46). The yield strength is set artificially high to isolate buckling, and the curing acceleration of 2.5 is the value the authors fitted to this wall.
+
+## Animated preview
+
+`examples/sapling_preview.py` is a second component that draws a gantry printer, the layers as they are printed, and the predicted failure. Connect its `Layers`, `Mode` and `Shape` inputs to the Sapling outputs of the same name, and drag a slider on `Step`.
+
+Optional inputs: `Camera` (`story` or `orbit`) moves the camera of the active Rhino viewport with `Step`, for exporting an animation with the slider's Animate function; `Zoom` sets the camera distance; `Segments` sets the resolution along the path. In the 500 mm example, raising `h` above 62 mm changes the predicted failure from elastic buckling to plastic collapse.
+
+The deformed shape it shows after failure is an illustration. For buckling it uses the mode shape along the height computed by Sapling, with an amplitude chosen for visibility, since a buckling mode has no defined amplitude. For plastic collapse it is a sketch of the mechanism described in Suiker et al. (2020). Do not read displacements off the preview.
 
 ## Verification
 

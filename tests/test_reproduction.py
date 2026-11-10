@@ -137,6 +137,16 @@ def test_warnings():
     assert any("clamped" in w for w in clamped["warnings"])
 
 
+def test_mode_shape():
+    # free wall without curing: clamped at the bottom, largest at the top,
+    # increasing monotonically (Greenhill mode)
+    w = sp.mode_shape(1.98635, 0.0)
+    assert len(w) == 21 and abs(w[0]) < 1e-9 and abs(w[-1] - 1.0) < 1e-9
+    assert all(w[i + 1] > w[i] for i in range(20))
+    r = sp.assess(Tl=9.6, b=0.25, edge="simply", **S20)        # plastic collapse
+    assert r["shape"] is None
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     for t in tests:

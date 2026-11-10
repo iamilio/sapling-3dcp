@@ -1,5 +1,5 @@
 """
-Sapling 0.1.0 - buildability check for 3D concrete printing
+Sapling 0.2.0 - buildability check for 3D concrete printing
 GhPython component (Rhino 7 IronPython / Rhino 8 CPython) and plain module.
 
 Implements the parametric model of Suiker (2018) for elastic buckling and
@@ -43,11 +43,14 @@ OUTPUTS:
     Mode     : 'elastic buckling' | 'plastic collapse' | 'no failure predicted'
     Report   : text summary
     Preview  : extrusion of Path up to Height (or Htarget when no failure)
+    Shape    : buckling mode along the height, 21 values from bottom to top,
+               normalised to 1 (empty unless the wall buckles). Amplitude is
+               arbitrary; used by sapling_preview.py to draw the buckled wall.
 """
 from __future__ import division
 import math
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"
 
 G = 9.81
 INF = float("inf")
@@ -148,7 +151,7 @@ def rect_profile(L, Ebar, gamma, bbar, dbar, npts, scaling="paper"):
 
 
 # ------------------------------------------------------------ core solver
-def _det(L, Ebar, gamma, nu, Ky, bbar, prof, n):
+def _det(L, Ebar, gamma, nu, Ky, bbar, prof, n, trace=None):
     """Shooting determinant of Eqs. (49), (54), (55); lengths in units of L0.
     prof: list of (n_y, c_y) at 2n+1 equidistant heights, or None (free wall)."""
     g, dg, d2g = _curing(Ebar, gamma)
@@ -174,6 +177,7 @@ def _det(L, Ebar, gamma, nu, Ky, bbar, prof, n):
     out = []
     for y in ([0.0, 0.0, 1.0, 0.0], [0.0, 0.0, 0.0, 1.0]):
         s = 0.0
+        ws = [y[0]]
         for i in range(n):                                       # classic RK4
             k1 = f(s, 2 * i, y)
             k2 = f(s + hs / 2, 2 * i + 1, [y[q] + hs / 2 * k1[q] for q in range(4)])
@@ -182,13 +186,32 @@ def _det(L, Ebar, gamma, nu, Ky, bbar, prof, n):
             y = [y[q] + hs / 6 * (k1[q] + 2 * k2[q] + 2 * k3[q] + k4[q])
                  for q in range(4)]
             s += hs
+            ws.append(y[0])
         w, wp, m, mp = y
         gs, gps = g(0.0), dg(0.0)
         c, _ = coef(2 * n)
         out.append((m - c * nu * w,
                     mp - c * (nu * (gps * w + gs * wp) + 2 * (1 - nu) * gs * wp)))
+        if trace is not None:
+            trace.append((ws, out[-1][0], out[-1][1]))
     (a1, b1), (a2, b2) = out
     return a1 * b2 - b1 * a2
+
+
+def _setup(L, Ebar, bbar, edge, gamma, dbar, scaling):
+    """Number of RK4 steps and the (n_y, c_y) profile for wall length L."""
+    n = int(max(120, min(600, 60 * L)))
+    if edge == "free":
+        prof = None
+    elif edge == "simply":
+        prof = [(1.0, 1.0)] * (2 * n + 1)
+    elif edge == "clamped":
+        prof = [(2.0, 0.5)] * (2 * n + 1)
+    elif edge == "rect":
+        prof = rect_profile(L, Ebar, gamma, bbar, dbar, 2 * n, scaling)
+    else:
+        raise ValueError("Edge must be free, simply, clamped or rect")
+    return n, prof
 
 
 def critical_length(Ebar, bbar=None, edge="free", nu=0.3, gamma=None,
@@ -198,17 +221,7 @@ def critical_length(Ebar, bbar=None, edge="free", nu=0.3, gamma=None,
     Ky = nu if Ky is None else Ky
 
     def D(L):
-        n = int(max(120, min(600, 60 * L)))
-        if edge == "free":
-            prof = None
-        elif edge == "simply":
-            prof = [(1.0, 1.0)] * (2 * n + 1)
-        elif edge == "clamped":
-            prof = [(2.0, 0.5)] * (2 * n + 1)
-        elif edge == "rect":
-            prof = rect_profile(L, Ebar, gamma, bbar, dbar, 2 * n, scaling)
-        else:
-            raise ValueError("Edge must be free, simply, clamped or rect")
+        n, prof = _setup(L, Ebar, bbar, edge, gamma, dbar, scaling)
         return _det(L, Ebar, gamma, nu, Ky, bbar, prof, n)
 
     L0 = 0.3
@@ -227,6 +240,32 @@ def critical_length(Ebar, bbar=None, edge="free", nu=0.3, gamma=None,
             return 0.5 * (L0 + L1)
         L0, d0 = L1, d1
     return INF
+
+
+def mode_shape(L, Ebar, bbar=None, edge="free", nu=0.3, gamma=None,
+               Ky=None, dbar=None, scaling="paper", npts=20):
+    """Buckling mode along the wall height at the critical length L.
+    Returns npts+1 deflections at equidistant heights (bottom to top),
+    normalised to a maximum of 1. The amplitude of a bifurcation mode is
+    arbitrary; only the shape has a meaning."""
+    Ky = nu if Ky is None else Ky
+    n, prof = _setup(L, Ebar, bbar, edge, gamma, dbar, scaling)
+    trace = []
+    _det(L, Ebar, gamma, nu, Ky, bbar, prof, n, trace)
+    (w1, a1, b1), (w2, a2, b2) = trace
+    if abs(a1) + abs(a2) >= abs(b1) + abs(b2):
+        c1, c2 = a2, -a1
+    else:
+        c1, c2 = b2, -b1
+    w = [c1 * w1[i] + c2 * w2[i] for i in range(n + 1)]
+    out = []
+    for k in range(npts + 1):
+        x = k * n / float(npts)
+        i = min(n - 1, int(x))
+        out.append(w[i] + (w[i + 1] - w[i]) * (x - i))
+    big = max(abs(v) for v in out) or 1.0
+    sign = 1.0 if out[-1] >= 0 else -1.0
+    return [sign * v / big for v in out]
 
 
 def assess(h, tl, Tl, rho, E0, nu, xiE, sig0, xiS, b=None, edge="free",
@@ -253,6 +292,10 @@ def assess(h, tl, Tl, rho, E0, nu, xiE, sig0, xiS, b=None, edge="free",
         H, mode, n = lcr, "elastic buckling", int(math.ceil(lcr / tl))
     else:  # +1 layer: constrained bottom layer (CCR 2020, Sec. 2.2)
         H, mode, n = lp, "plastic collapse", int(math.ceil(lp / tl)) + 1
+    shape = None
+    if mode == "elastic buckling":
+        shape = mode_shape(lcr / L0, Ebar, bbar, edge, nu, gammaE, Ky, dbar,
+                           scaling)
     warn = []
     if edge == "clamped" and Ebar > 0.5:
         warn.append("clamped wall at high curing rate: the model overestimates "
@@ -267,7 +310,7 @@ def assess(h, tl, Tl, rho, E0, nu, xiE, sig0, xiS, b=None, edge="free",
                     "the published formulas (Eq. 67 is for linear curing)")
     return dict(ldot=ldot, D0=D0, L0=L0, Ebar=Ebar, bbar=bbar, abar=abar,
                 lcr=lcr, lp=lp, H=H, mode=mode, n=n, limit=limit * L0,
-                warnings=warn)
+                warnings=warn, shape=shape)
 
 
 # ------------------------------------------------------- Grasshopper glue
@@ -283,15 +326,28 @@ def _gh_main():
         Tl_s = float(val("Tl"))
     edge = (val("Edge", "free") or "free").strip().lower()
     bb, dd, tl_mm = val("b"), val("d"), val("tl")
-    r = assess(h=val("h") / 1000.0, tl=tl_mm / 1000.0, Tl=Tl_s,
-               rho=val("rho", 2100.0), E0=val("E0") * 1000.0,
-               nu=val("nu", 0.3), xiE=val("xiE") / 60.0,
-               sig0=val("sig0") * 1000.0, xiS=val("xiS") / 60.0,
-               b=None if bb is None else bb / 1000.0, edge=edge,
-               gammaE=val("gammaE"),
-               d=None if dd is None else dd / 1000.0, Ky=val("Ky"),
-               scaling=(val("RectScaling", "paper") or "paper").strip().lower(),
-               betaE=val("betaE"))
+    kw = dict(h=val("h") / 1000.0, tl=tl_mm / 1000.0, Tl=Tl_s,
+              rho=val("rho", 2100.0), E0=val("E0") * 1000.0,
+              nu=val("nu", 0.3), xiE=val("xiE") / 60.0,
+              sig0=val("sig0") * 1000.0, xiS=val("xiS") / 60.0,
+              b=None if bb is None else bb / 1000.0, edge=edge,
+              gammaE=val("gammaE"),
+              d=None if dd is None else dd / 1000.0, Ky=val("Ky"),
+              scaling=(val("RectScaling", "paper") or "paper").strip().lower(),
+              betaE=val("betaE"))
+    # Results are kept per set of inputs, so returning to values that were
+    # already solved (e.g. dragging a slider back) is immediate.
+    try:
+        import scriptcontext as sc
+        cache = sc.sticky.setdefault("sapling_results", {})
+    except ImportError:
+        cache = {}
+    key = tuple(sorted(kw.items()))
+    if key not in cache:
+        if len(cache) > 2000:
+            cache.clear()
+        cache[key] = assess(**kw)
+    r = cache[key]
 
     def mm(x):
         return "none below %.0f mm" % (r["limit"] * 1000) if x == INF \
@@ -315,12 +371,12 @@ def _gh_main():
     if path is not None and top:
         import Rhino.Geometry as rg
         prev = rg.Surface.CreateExtrusion(path, rg.Vector3d(0, 0, top))
-    return Hmm, r["n"], r["mode"], "\n".join(lines), prev
+    return Hmm, r["n"], r["mode"], "\n".join(lines), prev, r["shape"]
 
 
 try:
     import Rhino  # noqa: F401  (only inside Rhino)
-    Height, Layers, Mode, Report, Preview = _gh_main()
+    Height, Layers, Mode, Report, Preview, Shape = _gh_main()
     H = Height
 except ImportError:
     pass
