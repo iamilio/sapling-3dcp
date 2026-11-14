@@ -503,6 +503,7 @@
       alu: std("#c6cbce", 0.9, 0.36), anod: std("#2b3034", 0.7, 0.45), steel: std("#a9b0b5", 1.0, 0.22),
       stainless: std("#d9dcde", 1.0, 0.27), black: std("#16181a", 0.05, 0.62), rubber: std("#22262a", 0.0, 0.85),
       orange: std("#e2701f", 0.25, 0.48), base: std("#454c52", 0.55, 0.55), paint: std("#d3d7d2", 0.1, 0.55),
+      blue: std("#35607f", 0.35, 0.5), wood: std("#bfa57c", 0, 0.85), bag: std("#d8d0bd", 0, 0.9), hazard: std("#e3ad12", 0, 0.8),
       green: std("#2c7a4d", 0.15, 0.5), red: std("#c5281c", 0.1, 0.45), yellow: std("#e8b414", 0.1, 0.5),
       screen: new T.MeshStandardMaterial({ color: C("#0c1512"), emissive: C("#3fd08a"), emissiveIntensity: 0.55, roughness: 0.3, metalness: 0 })
     };
@@ -513,7 +514,7 @@
       for (var i = 0; i <= cells; i++) { var p = Math.round(i * px / cells) + 0.5; x.beginPath(); x.moveTo(p, 0); x.lineTo(p, px); x.moveTo(0, p); x.lineTo(px, p); x.stroke(); }
       var t = new T.CanvasTexture(c); t.wrapS = t.wrapT = T.RepeatWrapping; t.encoding = T.sRGBEncoding; t.anisotropy = 8; return t;
     }
-    var bedMat = new T.MeshStandardMaterial({ map: gridTexture("#353a3f", "#4b5258", 2, 256), metalness: 0.1, roughness: 0.8 });
+    var boardMat = new T.MeshStandardMaterial({ map: gridTexture("#cdb78e", "#b8a076", 2, 256), metalness: 0, roughness: 0.82 });
     var floorMat = new T.MeshStandardMaterial({ color: 0xffffff, metalness: 0, roughness: 0.95, envMapIntensity: 0.5 });
     var floorTex = { light: gridTexture("#cdd2cc", "#bfc5be", 1, 256), dark: gridTexture("#1c211e", "#262d28", 1, 256) };
 
@@ -531,7 +532,7 @@
     // ---- small builders
     var world = new T.Group(); scene.add(world);
     var beadMat = std("#6f7570", 0, 0.9);
-    var bead = new T.Mesh(new T.CylinderGeometry(1, 1.25, 1, 20), beadMat); bead.visible = false; world.add(bead);
+    var bead = new T.Mesh(new T.BoxGeometry(1, 1, 1), beadMat); bead.visible = false; world.add(bead);
     var printer = null, wall = null;
     function shadow(m, cast, recv) { m.castShadow = cast !== false; m.receiveShadow = recv !== false; return m; }
     function box(parent, w, h, d, mat, x, y, z) { var m = shadow(new T.Mesh(new T.BoxGeometry(w, h, d), mat)); m.position.set(x, y, z); parent.add(m); return m; }
@@ -540,38 +541,28 @@
       if (axis === "x") m.rotation.z = Math.PI / 2; if (axis === "z") m.rotation.x = Math.PI / 2;
       parent.add(m); return m;
     }
-    // slotted aluminium profile, as used for machine frames
-    function profileShape(s) {
-      var a = s / 2, sl = s * 0.1, dp = s * 0.16, r = s * 0.06, sh = new T.Shape();
-      sh.moveTo(-a + r, -a);
-      [[1, 0], [0, 1], [-1, 0], [0, -1]].forEach(function (dir) {
-        var dx = dir[0], dy = dir[1], nx = dy, ny = -dx;                 // outward normal of this side
-        function P(u, v) { return [dx * u + nx * v, dy * u + ny * v]; }  // u along the side, v outward
-        var p;
-        p = P(-sl, a); sh.lineTo(p[0], p[1]); p = P(-sl, a - dp); sh.lineTo(p[0], p[1]);
-        p = P(sl, a - dp); sh.lineTo(p[0], p[1]); p = P(sl, a); sh.lineTo(p[0], p[1]);
-        p = P(a - r, a); sh.lineTo(p[0], p[1]);
-        var c = P(a, a - r), q = P(a, a); sh.quadraticCurveTo(q[0], q[1], c[0], c[1]);
-      });
-      return sh;
+    // steel member between two points
+    function strut(parent, ax, ay, az, bx, by, bz, size, mat) {
+      var a = new T.Vector3(ax, ay, az), b = new T.Vector3(bx, by, bz), d = b.clone().sub(a), len = d.length();
+      var m = shadow(new T.Mesh(new T.BoxGeometry(size, size, len), mat));
+      m.position.copy(a).add(b).multiplyScalar(0.5); m.quaternion.setFromUnitVectors(new T.Vector3(0, 0, 1), d.normalize());
+      parent.add(m); return m;
     }
-    var shapes = {};
-    function beam(parent, len, size, axis, x, y, z, mat) {
-      var sh = shapes[size] || (shapes[size] = profileShape(size));
-      var g = new T.ExtrudeGeometry(sh, { depth: len, bevelEnabled: false, curveSegments: 3 });
-      g.translate(0, 0, -len / 2);
-      if (axis === "x") g.rotateY(Math.PI / 2); if (axis === "y") g.rotateX(Math.PI / 2);
-      var m = shadow(new T.Mesh(g, mat || M.alu)); m.position.set(x, y, z); parent.add(m); return m;
-    }
-    function motor(parent, x, y, z, axis, dirSign) {
+    // servo drive with gearbox
+    function servo(parent, x, y, z, axis) {
       var g = new T.Group(); g.position.set(x, y, z);
-      box(g, 58, 58, 46, M.black, 0, 0, 0); box(g, 58, 58, 8, M.alu, 0, 0, 27); box(g, 58, 58, 8, M.alu, 0, 0, -27);
-      cyl(g, 19, 19, 4, M.alu, 0, 0, 33, "z"); cyl(g, 4, 4, 30, M.steel, 0, 0, 46, "z", 12); cyl(g, 13, 13, 14, M.anod, 0, 0, 48, "z", 20);
-      box(g, 20, 12, 16, M.black, 0, 35, -12);
-      if (axis === "x") g.rotation.y = dirSign * Math.PI / 2;
-      if (axis === "y") g.rotation.x = -dirSign * Math.PI / 2;
-      if (axis === "z" && dirSign < 0) g.rotation.y = Math.PI;
+      box(g, 96, 96, 70, M.alu, 0, 0, 0); cyl(g, 44, 44, 150, M.black, 0, 0, 110, "z", 24); cyl(g, 46, 46, 14, M.orange, 0, 0, 190, "z", 24);
+      box(g, 40, 30, 50, M.black, 0, 52, 120);
+      if (axis === "x") g.rotation.y = Math.PI / 2; if (axis === "-x") g.rotation.y = -Math.PI / 2;
+      if (axis === "y") g.rotation.x = -Math.PI / 2; if (axis === "-z") g.rotation.y = Math.PI;
       parent.add(g); return g;
+    }
+    // box that tapers from a top rectangle to a bottom rectangle (the nozzle)
+    function frustumGeometry(a1, b1, a0, b0, y1, y0) {
+      var v = [[-a1, y1, -b1], [a1, y1, -b1], [a1, y1, b1], [-a1, y1, b1], [-a0, y0, -b0], [a0, y0, -b0], [a0, y0, b0], [-a0, y0, b0]].map(function (p) { return [p[0] / 2, p[1], p[2] / 2]; });
+      var faces = [[0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7], [3, 2, 1, 0], [4, 5, 6, 7]], pos = [];
+      faces.forEach(function (f) { [f[0], f[1], f[2], f[0], f[2], f[3]].forEach(function (i) { pos.push(v[i][0], v[i][1], v[i][2]); }); });
+      var g = new T.BufferGeometry(); g.setAttribute("position", new T.Float32BufferAttribute(pos, 3)); g.computeVertexNormals(); return g;
     }
     function tube(points, radius, mat, seg) {
       var curve = new T.CatmullRomCurve3(points, false, "centripetal");
@@ -580,182 +571,171 @@
     function dispose(obj) { obj.traverse(function (o) { if (o.geometry) o.geometry.dispose(); }); if (obj.parent) obj.parent.remove(obj); }
 
     // ================================================== the printer
-    var P = 80, FLOOR = -190, ZOFF = P / 2 + 96, HEAD = 150;
-    function frameHeight(maxWall) { return Math.max(750, Math.ceil((maxWall + 400) / 50) * 50); }
+    // A gantry concrete printer: a portal on floor rails carries a truss bridge,
+    // a trolley on the bridge carries a vertical mast, and the mast carries a
+    // turning nozzle fed by a hose from a mixer-pump.
+    var FLOOR = -60, TH = 260, TW = 180, ZAX = TW / 2 + 150, HEAD = 300;
+    function frameHeight(maxWall) { return Math.max(1150, Math.ceil((maxWall + 650) / 50) * 50); }
     function buildPrinter(W, D, maxWall) {
-      var X0 = W / 2 + 240, Z0 = D / 2 + 240 + ZOFF / 2;
-      var Hr = frameHeight(maxWall);
+      var X0 = W / 2 + 520, Hr = frameHeight(maxWall), zmin = -D / 2 - ZAX - 560, zmax = D / 2 - ZAX + 560, zc = (zmin + zmax) / 2, RL = zmax - zmin + 300;
       var g = new T.Group(), k, sx, sz;
-      var out = { group: g, X0: X0, Z0: Z0, Hr: Hr };
+      var out = { group: g, X0: X0, Hr: Hr, zmin: zmin, zmax: zmax };
 
-      // floor
-      var fl = new T.Mesh(new T.CircleGeometry(9000, 72), floorMat); fl.rotation.x = -Math.PI / 2; fl.position.y = FLOOR; fl.receiveShadow = true; g.add(fl);
-      out.floor = fl;
-
-      // base: bed plate on a welded under-frame with levelling feet
-      var bw = 2 * X0 - 2 * P - 30, bd = 2 * Z0 - 2 * P - 30;
-      var bed = box(g, bw, 22, bd, bedMat, 0, -11, 0);
-      bedMat.map.repeat.set(bw / 200, bd / 200);
-      box(g, bw + 8, 6, bd + 8, M.steel, 0, -25, 0);
-      [-1, 1].forEach(function (s) {
-        box(g, bw, 70, 50, M.base, 0, -63, s * (bd / 2 - 25)); box(g, 50, 70, bd - 100, M.base, s * (bw / 2 - 25), -63, 0);
+      // floor, with the safety line around the cell
+      var fl = new T.Mesh(new T.CircleGeometry(11000, 72), floorMat); fl.rotation.x = -Math.PI / 2; fl.position.y = FLOOR; fl.receiveShadow = true; g.add(fl);
+      var hx = X0 + 430, hz0 = zmin - 330, hz1 = zmax + 330;
+      [[0, hz0, 2 * hx + 60, 60], [0, hz1, 2 * hx + 60, 60], [-hx, (hz0 + hz1) / 2, 60, hz1 - hz0], [hx, (hz0 + hz1) / 2, 60, hz1 - hz0]].forEach(function (q) {
+        var m = new T.Mesh(new T.BoxGeometry(q[2], 1.2, q[3]), M.hazard); m.position.set(q[0], FLOOR + 0.7, q[1]); m.receiveShadow = true; g.add(m);
       });
-      for (k = -1; k <= 1; k++) box(g, bw - 100, 60, 40, M.base, 0, -62, k * bd / 4);
-      [-1, 0, 1].forEach(function (a) { [-1, 1].forEach(function (b2) {
-        var fx = a * (bw / 2 - 40), fz = b2 * (bd / 2 - 40);
-        cyl(g, 9, 9, 76, M.steel, fx, FLOOR + 54, fz, "y", 12); cyl(g, 34, 38, 14, M.black, fx, FLOOR + 7, fz, "y", 24); cyl(g, 16, 16, 10, M.steel, fx, FLOOR + 30, fz, "y", 6);
-      }); });
 
-      // frame
-      for (sx = -1; sx <= 1; sx += 2) for (sz = -1; sz <= 1; sz += 2) {
-        var colH = Hr - P - (FLOOR + 14);
-        beam(g, colH, P, "y", sx * X0, FLOOR + 14 + colH / 2, sz * Z0);
-        box(g, 170, 14, 170, M.anod, sx * X0, FLOOR + 7, sz * Z0);
-        [[55, 55], [55, -55], [-55, 55], [-55, -55]].forEach(function (b3) { cyl(g, 8, 8, 8, M.steel, sx * X0 + b3[0], FLOOR + 17, sz * Z0 + b3[1], "y", 6); });
-        // gussets under the top beams
-        var tri = new T.Shape(); tri.moveTo(0, 0); tri.lineTo(120, 0); tri.lineTo(0, -120); tri.lineTo(0, 0);
-        var gg = new T.ExtrudeGeometry(tri, { depth: 8, bevelEnabled: false });
-        var g1 = shadow(new T.Mesh(gg, M.anod)); g1.position.set(sx * (X0 - P / 2), Hr - P, sz * Z0 - 4); if (sx > 0) { g1.scale.x = -1; } g.add(g1);
-        var g2 = shadow(new T.Mesh(gg, M.anod)); g2.rotation.y = -Math.PI / 2 * sz; g2.position.set(sx * X0 + (sz > 0 ? 4 : -4), Hr - P, sz * (Z0 - P / 2)); g.add(g2);
-      }
+      // print board on battens
+      var bw = W + 560, bd = D + 560;
+      box(g, bw, 36, bd, boardMat, 0, -18, 0); boardMat.map.repeat.set(bw / 200, bd / 200);
+      [-1, 0, 1].forEach(function (a) { box(g, bw - 40, 24, 90, M.wood, 0, -48, a * (bd / 2 - 70)); });
+
+      // floor rails
       for (sx = -1; sx <= 1; sx += 2) {
-        beam(g, 2 * Z0 + P, P, "z", sx * X0, Hr - P / 2, 0);                         // Y beams (carry the bridge)
-        box(g, P + 2, P + 2, 5, M.black, sx * X0, Hr - P / 2, Z0 + P / 2 + 2.5); box(g, P + 2, P + 2, 5, M.black, sx * X0, Hr - P / 2, -Z0 - P / 2 - 2.5);
-        beam(g, 2 * Z0 - P, P * 0.75, "z", sx * X0, FLOOR + 150, 0);                  // low ties
-        box(g, 22, 14, 2 * Z0 + P - 30, M.steel, sx * X0, Hr + 7, 0);                 // linear rail
-        for (k = -Z0; k <= Z0; k += 60) cyl(g, 3.2, 3.2, 2, M.black, sx * X0, Hr + 14.5, k, "y", 8);
-        box(g, 2.5, 12, 2 * Z0 - 20, M.black, sx * (X0 - P / 2 - 3), Hr - 22, 0);       // belt
-        cyl(g, 15, 15, 16, M.steel, sx * (X0 - P / 2 - 10), Hr - 22, Z0 - 6, "x", 20);
-        cyl(g, 15, 15, 16, M.steel, sx * (X0 - P / 2 - 10), Hr - 22, -Z0 + 6, "x", 20);
-        var mo = motor(g, sx * (X0 - P / 2 - 34), Hr - 22, -Z0 - 2, "x", sx);
-        mo.rotation.y = sx > 0 ? Math.PI / 2 : -Math.PI / 2; mo.position.x = sx * (X0 + 36); mo.position.z = -Z0 + 6;
-        box(g, 10, 80, 80, M.anod, sx * (X0 + P / 2 + 5), Hr - 30, -Z0 + 6);
-      }
-      for (sz = -1; sz <= 1; sz += 2) {
-        beam(g, 2 * X0 - P, P, "x", 0, Hr - P / 2, sz * Z0);                          // top ties
-        if (sz < 0) beam(g, 2 * X0 - P, P * 0.75, "x", 0, FLOOR + 150, sz * Z0);        // low tie at the back only
+        box(g, 80, 42, RL, M.steel, sx * X0, FLOOR + 21, zc); box(g, 44, 18, RL, M.steel, sx * X0, FLOOR + 51, zc);
+        box(g, 16, 22, RL - 80, M.black, sx * (X0 - 62), FLOOR + 32, zc);                               // rack
+        for (k = zmin - 100; k <= zmax + 100; k += 420) { box(g, 230, 8, 150, M.anod, sx * X0, FLOOR + 4, k); cyl(g, 9, 9, 10, M.steel, sx * X0 + 90, FLOOR + 12, k, "y", 6); cyl(g, 9, 9, 10, M.steel, sx * X0 - 90, FLOOR + 12, k, "y", 6); }
+        [zmin - 130, zmax + 130].forEach(function (ze, i) { box(g, 120, 170, 70, M.yellow, sx * X0, FLOOR + 85, ze); cyl(g, 34, 34, 36, M.rubber, sx * X0, FLOOR + 125, ze + (i ? -52 : 52), "z", 20); });
       }
 
-      // control cabinet on the front left column
-      var cab = new T.Group(); cab.position.set(-X0 - P / 2 - 140, 520, Z0); cab.rotation.y = Math.PI / 2; g.add(cab);
-      box(cab, 120, 380, 280, M.paint, 0, 0, 0); box(cab, 4, 350, 250, M.paint, -62, 0, 0);
-      box(cab, 3, 120, 170, M.screen, -64.5, 90, 0).castShadow = false;
-      box(cab, 3, 8, 170, M.green, -64.5, 6, 0);
-      cyl(cab, 26, 26, 6, M.yellow, -65, -70, -70, "x", 24); cyl(cab, 17, 20, 18, M.red, -76, -70, -70, "x", 24);
-      cyl(cab, 9, 9, 8, M.green, -66, -70, 10, "x", 16); cyl(cab, 9, 9, 8, M.black, -66, -70, 50, "x", 16);
-      box(cab, 4, 30, 6, M.black, -66, -140, 100);
-      out.cabinet = cab;
-
-      // ---- bridge: moves along the Y beams
+      // ---- portal: runs on the rails
       var bridge = new T.Group(); g.add(bridge); out.bridge = bridge;
       for (sx = -1; sx <= 1; sx += 2) {
-        box(bridge, 54, 28, 84, M.steel, sx * X0, Hr + 28, -62); box(bridge, 54, 28, 84, M.steel, sx * X0, Hr + 28, 62);
-        box(bridge, 54, 6, 84, M.red, sx * X0, Hr + 17, -62).castShadow = false; box(bridge, 54, 6, 84, M.red, sx * X0, Hr + 17, 62).castShadow = false;
-        box(bridge, 130, 14, 250, M.anod, sx * X0, Hr + 49, 0);
-        box(bridge, 14, 110, 130, M.anod, sx * (X0 + P / 2 + 7), Hr + 100, 0);
+        [-270, 270].forEach(function (wz) { cyl(bridge, 70, 70, 56, M.steel, sx * X0, 70, wz, "x", 28); cyl(bridge, 30, 30, 64, M.anod, sx * X0, 70, wz, "x", 16); });
+        box(bridge, 200, 150, 800, M.blue, sx * X0, 140, 0);
+        box(bridge, 16, 190, 760, M.blue, sx * (X0 + 108), 120, 0); box(bridge, 16, 190, 760, M.blue, sx * (X0 - 108), 120, 0);
+        servo(bridge, sx * (X0 + 60), 150, 250, sx > 0 ? "x" : "-x");
+        box(bridge, 150, Hr - 215, 150, M.blue, sx * X0, (Hr + 215) / 2, 0);                               // column
+        strut(bridge, sx * X0, 215, 350, sx * X0, Hr - 140, 50, 80, M.blue); strut(bridge, sx * X0, 215, -350, sx * X0, Hr - 140, -50, 80, M.blue);
+        box(bridge, 230, 30, 300, M.anod, sx * X0, Hr - 15, 0);
+        box(bridge, 20, TH + 30, TW + 90, M.anod, sx * (X0 + 160), Hr + TH / 2, 0);
       }
-      var by = Hr + 56 + P / 2;
-      beam(bridge, 2 * X0 + P, P, "x", 0, by, 0);
-      box(bridge, 2 * X0 - 60, 22, 14, M.steel, 0, by, P / 2 + 7);                    // X rail on the front face
-      for (k = -X0 + 60; k <= X0 - 60; k += 60) cyl(bridge, 3.2, 3.2, 2, M.black, k, by, P / 2 + 14.5, "z", 8);
-      box(bridge, 2 * X0 - 40, 2.5, 12, M.black, 0, by + P / 2 + 14, 0);                // X belt
-      box(bridge, 2 * X0 - 40, 2.5, 12, M.black, 0, by + P / 2 + 40, 0);
-      cyl(bridge, 14, 14, 16, M.steel, -X0 + 20, by + P / 2 + 27, 0, "z", 20);
-      cyl(bridge, 14, 14, 16, M.steel, X0 - 20, by + P / 2 + 27, 0, "z", 20);
-      box(bridge, 70, 70, 10, M.anod, X0 - 20, by + P / 2 + 30, -14);
-      var mx = motor(bridge, X0 - 20, by + P / 2 + 27, -52, "z", 1);
-      box(bridge, 2 * X0 - 100, 26, 4, M.anod, 0, by + 4, -P / 2 - 2);                  // cable tray on the back
-      box(bridge, 2 * X0 - 100, 4, 34, M.anod, 0, by - 9, -P / 2 - 19);
+      // truss bridge
+      var n = Math.max(4, 2 * Math.round(X0 / 300)), dxn = 2 * X0 / n;
+      for (sz = -1; sz <= 1; sz += 2) {
+        var zt = sz * TW / 2;
+        box(bridge, 2 * X0 + 300, 70, 70, M.blue, 0, Hr + 35, zt); box(bridge, 2 * X0 + 300, 70, 70, M.blue, 0, Hr + TH - 35, zt);
+        for (k = 0; k <= n; k++) {
+          var xn = -X0 + k * dxn;
+          strut(bridge, xn, Hr + 70, zt, xn, Hr + TH - 70, zt, 46, M.blue);
+          if (k < n) { if (k % 2) strut(bridge, xn, Hr + TH - 70, zt, xn + dxn, Hr + 70, zt, 40, M.blue); else strut(bridge, xn, Hr + 70, zt, xn + dxn, Hr + TH - 70, zt, 40, M.blue); }
+        }
+        box(bridge, 2 * X0 + 220, 14, 26, M.steel, 0, Hr + TH + 7, zt);                                   // trolley rails
+      }
+      for (k = 0; k <= n; k++) { box(bridge, 46, 46, TW - 70, M.blue, -X0 + k * dxn, Hr + 35, 0); box(bridge, 46, 46, TW - 70, M.blue, -X0 + k * dxn, Hr + TH - 35, 0); }
+      box(bridge, 2 * X0 + 200, 16, 12, M.black, 0, Hr + TH - 12, TW / 2 + 41);                           // rack for the trolley
+      // signal light on the left leg
+      cyl(bridge, 10, 10, 150, M.steel, -X0, Hr + TH + 90, -110, "y", 10);
+      [["#c5281c", 0], ["#e8a614", 1], ["#2c9a55", 2]].forEach(function (c) {
+        cyl(bridge, 24, 24, 34, new T.MeshStandardMaterial({ color: C(c[0]), emissive: C(c[0]), emissiveIntensity: c[1] === 2 ? 0.9 : 0.12, roughness: 0.4 }), -X0, Hr + TH + 240 - c[1] * 36, -110, "y", 18).castShadow = false;
+      });
 
-      // ---- carriage: moves along the bridge
+      // ---- trolley: runs along the bridge
       var car = new T.Group(); bridge.add(car); out.carriage = car;
-      box(car, 64, 30, 26, M.steel, -50, by, P / 2 + 27); box(car, 64, 30, 26, M.steel, 50, by, P / 2 + 27);
-      box(car, 200, 210, 16, M.orange, 0, by + 10, P / 2 + 48);
-      box(car, 130, 190, 92, M.anod, 0, by + 10, ZOFF + 8);                              // guide housing of the Z mast
-      box(car, 134, 20, 96, M.orange, 0, by + 108, ZOFF + 8); box(car, 134, 20, 96, M.orange, 0, by - 88, ZOFF + 8);
-      [-1, 1].forEach(function (s) { cyl(car, 15, 15, 30, M.steel, s * 48, by + 60, ZOFF + 8, "x", 16); cyl(car, 15, 15, 30, M.steel, s * 48, by - 40, ZOFF + 8, "x", 16); });
-      var mz = motor(car, -108, by + 10, ZOFF + 8, "x", 1); mz.rotation.y = Math.PI / 2; mz.position.x = -98;
-      box(car, 12, 12, 60, M.black, 60, by + 122, P / 2 + 30);
-      // belt clamp
-      box(car, 60, 40, 30, M.anod, 0, by + P / 2 + 20, 10);
+      box(car, 280, 24, TW + 100, M.orange, 0, Hr + TH + 40, 0);
+      [[-95, 1], [95, 1], [-95, -1], [95, -1]].forEach(function (q) { box(car, 80, 26, 56, M.steel, q[0], Hr + TH + 27, q[1] * TW / 2); });
+      box(car, 280, TH + 100, 18, M.orange, 0, Hr + TH / 2, TW / 2 + 52);
+      box(car, 200, TH + 40, 160, M.anod, 0, Hr + TH / 2, ZAX);                                           // guide of the mast
+      box(car, 214, 26, 174, M.orange, 0, Hr + TH + 8, ZAX); box(car, 214, 26, 174, M.orange, 0, Hr - 8, ZAX);
+      [-1, 1].forEach(function (s) { cyl(car, 20, 20, 36, M.steel, s * 78, Hr + TH + 34, ZAX + 62, "x", 16); cyl(car, 20, 20, 36, M.steel, s * 78, Hr - 34, ZAX + 62, "x", 16); });
+      servo(car, 0, Hr + TH + 100, -30, "-z"); servo(car, 100, Hr + TH / 2, ZAX, "x");
 
-      // ---- Z mast with the print head: moves vertically in the carriage
+      // ---- mast and print head: move up with the wall
       var mast = new T.Group(); car.add(mast); out.mast = mast;
-      var Lz = Hr + 130; out.Lz = Lz;
-      beam(mast, Lz, 60, "y", 0, HEAD + Lz / 2, ZOFF + 8);
-      box(mast, 8, Lz - 60, 14, M.steel, -34, HEAD + Lz / 2, ZOFF + 8);                  // rack
-      box(mast, 70, 10, 70, M.black, 0, HEAD + Lz + 5, ZOFF + 8);
-      cyl(mast, 26, 26, 46, M.stainless, 0, HEAD + Lz + 33, ZOFF + 8, "y", 24);          // hose inlet
-      cyl(mast, 30, 30, 10, M.anod, 0, HEAD + Lz + 58, ZOFF + 8, "y", 24);
-      // head
-      box(mast, 110, 12, 110, M.anod, 0, HEAD - 6, ZOFF + 8);
-      cyl(mast, 44, 44, 58, M.stainless, 0, HEAD - 41, ZOFF + 8, "y", 36);
-      cyl(mast, 48, 48, 7, M.anod, 0, HEAD - 14, ZOFF + 8, "y", 36); cyl(mast, 48, 48, 7, M.anod, 0, HEAD - 68, ZOFF + 8, "y", 36);
-      [0, 1, 2, 3].forEach(function (i) { var a = i * Math.PI / 2 + Math.PI / 4; cyl(mast, 4, 4, 68, M.steel, 46 * Math.cos(a), HEAD - 41, ZOFF + 8 + 46 * Math.sin(a), "y", 8); });
-      out.cone = cyl(mast, 44, 24, 44, M.stainless, 0, HEAD - 92, ZOFF + 8, "y", 36);
-      out.tipMesh = cyl(mast, 24, 22, 36, M.rubber, 0, 18, ZOFF + 8, "y", 32);
-      box(mast, 26, 26, 40, M.black, 58, HEAD - 41, ZOFF + 8);                           // small vibrator / sensor box
+      var Lz = Hr + TH + 160 - HEAD; out.Lz = Lz; out.topY = HEAD + Lz + maxWall + 150;
+      box(mast, 100, Lz, 100, M.anod, 0, HEAD + Lz / 2, ZAX); box(mast, 14, Lz - 80, 22, M.steel, 57, HEAD + Lz / 2, ZAX);
+      box(mast, 110, 12, 110, M.black, 0, HEAD + Lz + 6, ZAX);
+      // hose down the back of the mast into the head
+      var zb = ZAX - 80;
+      mast.add(tube([new T.Vector3(0, HEAD + Lz - 70, zb), new T.Vector3(0, HEAD + Lz * 0.6, zb), new T.Vector3(0, HEAD + 120, zb), new T.Vector3(0, HEAD + 10, zb + 8),
+        new T.Vector3(0, HEAD - 70, zb + 40), new T.Vector3(0, HEAD - 104, ZAX - 2), new T.Vector3(0, HEAD - 130, ZAX)], 26, M.rubber, 60));
+      for (k = 0; k < 4; k++) box(mast, 76, 26, 34, M.black, 0, HEAD + 110 + k * (Lz - 220) / 3, zb + 14);
+      box(mast, 160, 14, 160, M.anod, 0, HEAD - 7, ZAX);
+      cyl(mast, 62, 62, 56, M.black, 0, HEAD - 42, ZAX, "y", 32); cyl(mast, 68, 68, 8, M.orange, 0, HEAD - 74, ZAX, "y", 32);     // turning unit
+      var headRot = new T.Group(); headRot.position.set(0, 0, ZAX); mast.add(headRot); out.headRot = headRot;
+      cyl(headRot, 36, 36, 96, M.stainless, 0, HEAD - 126, 0, "y", 28); cyl(headRot, 44, 44, 10, M.anod, 0, HEAD - 176, 0, "y", 28);
+      box(headRot, 30, 40, 60, M.black, 52, HEAD - 130, 0);
+      out.nozzle = shadow(new T.Mesh(new T.BufferGeometry(), std("#d9dcde", 1.0, 0.27, { side: T.DoubleSide }))); headRot.add(out.nozzle);
+      out.lip = shadow(new T.Mesh(new T.BoxGeometry(1, 1, 1), M.rubber)); headRot.add(out.lip);
 
-      // ---- pump behind the frame; the hose runs up to a guide on the back beam
-      var S0 = new T.Vector3(0, Hr + 118, -Z0); out.S0 = S0; out.topY = 2 * Hr + 150;
-      box(g, 46, 100, 46, M.anod, 0, Hr + 50, -Z0);
-      var ring = shadow(new T.Mesh(new T.TorusGeometry(36, 8, 10, 28), M.orange)); ring.rotation.x = Math.PI / 2; ring.position.copy(S0); g.add(ring);
+      // ---- hose boom behind the cell
+      var Hb = Hr + TH + 520, pz = zmin - 430, S0 = new T.Vector3(0, Hb - 70, -D / 2 - 430); out.S0 = S0;
+      box(g, 320, 14, 320, M.anod, 0, FLOOR + 7, pz); box(g, 120, Hb - FLOOR, 120, M.blue, 0, (Hb + FLOOR) / 2, pz);
+      box(g, 90, 90, S0.z - pz + 120, M.blue, 0, Hb, (S0.z + pz) / 2 + 30);
+      strut(g, 0, Hb - 320, pz, 0, Hb - 30, pz + 330, 60, M.blue);
+      var ring = shadow(new T.Mesh(new T.TorusGeometry(38, 8, 10, 28), M.orange)); ring.rotation.x = Math.PI / 2; ring.position.copy(S0); g.add(ring);
+      box(g, 16, 60, 16, M.steel, 0, Hb - 40, S0.z);
 
-      var pump = new T.Group(); pump.position.set(-170, FLOOR, -Z0 - 620); pump.rotation.y = 0.12; g.add(pump);
-      box(pump, 620, 300, 380, M.paint, 0, 250, 0); box(pump, 624, 26, 384, M.green, 0, 180, 0);
-      box(pump, 660, 40, 420, M.base, 0, 80, 0);
+      // ---- mixer-pump and mortar bags
+      var pump = new T.Group(); pump.position.set(640, FLOOR, pz - 60); pump.rotation.y = Math.PI; g.add(pump);
+      box(pump, 620, 300, 380, M.paint, 0, 250, 0); box(pump, 624, 26, 384, M.orange, 0, 180, 0); box(pump, 660, 40, 420, M.base, 0, 80, 0);
       [[-240, -210], [240, -210], [-240, 210], [240, 210]].forEach(function (w) { cyl(pump, 60, 60, 44, M.rubber, w[0], 60, w[1], "z", 28); cyl(pump, 26, 26, 48, M.steel, w[0], 60, w[1], "z", 16); });
       var hop = shadow(new T.Mesh(new T.CylinderGeometry(230, 110, 230, 40, 1, true), std("#d9dcde", 1.0, 0.3, { side: T.DoubleSide }))); hop.position.set(-110, 515, 0); pump.add(hop);
       var tor = shadow(new T.Mesh(new T.TorusGeometry(230, 9, 10, 48), M.stainless)); tor.rotation.x = Math.PI / 2; tor.position.set(-110, 630, 0); pump.add(tor);
-      var mixc = new T.Mesh(new T.CircleGeometry(196, 40), std("#7b807b", 0, 0.95)); mixc.rotation.x = -Math.PI / 2; mixc.position.set(-110, 590, 0); pump.add(mixc);
+      var mixc = new T.Mesh(new T.CircleGeometry(196, 40), std("#7b807b", 0, 0.95)); mixc.rotation.x = -Math.PI / 2; mixc.position.set(-110, 585, 0); pump.add(mixc);
+      for (k = -2; k <= 2; k++) { box(pump, 8, 8, 2 * Math.sqrt(230 * 230 - 80 * 80 * k * k) - 10, M.steel, -110 + 80 * k, 632, 0); }
       box(pump, 150, 190, 230, M.anod, 215, 495, 0); box(pump, 4, 70, 110, M.screen, 291, 520, 0).castShadow = false;
-      cyl(pump, 70, 70, 200, M.base, 150, 250, -235, "x", 28); cyl(pump, 42, 42, 90, M.stainless, 345, 170, 0, "x", 24);
+      cyl(pump, 70, 70, 220, M.base, 150, 250, -235, "x", 28); cyl(pump, 42, 42, 90, M.stainless, 345, 170, 0, "x", 24);
+      strut(pump, 60, 380, 120, 300, 300, 120, 90, M.stainless);                                           // mixing tube
       box(pump, 30, 170, 30, M.steel, -330, 470, 150); box(pump, 30, 170, 30, M.steel, -330, 470, -150); cyl(pump, 13, 13, 330, M.steel, -330, 560, 0, "z", 14);
       pump.updateMatrixWorld(true);
       var outlet = new T.Vector3(390, 170, 0).applyMatrix4(pump.matrixWorld);
-      // fixed part of the hose: out of the pump, over the floor, up to the guide
-      var pts = [outlet, new T.Vector3(outlet.x + 170, FLOOR + 70, outlet.z + 30), new T.Vector3(outlet.x + 250, FLOOR + 30, outlet.z + 250),
-        new T.Vector3(outlet.x + 90, FLOOR + 32, -Z0 - 190), new T.Vector3(70, FLOOR + 120, -Z0 - 120),
-        new T.Vector3(14, Hr * 0.45, -Z0 - 96), new T.Vector3(0, Hr - 60, -Z0 - 80), new T.Vector3(0, Hr + 70, -Z0 - 26), S0.clone()];
-      g.add(tube(pts, 24, M.rubber, 110));
-      box(g, 70, 26, 60, M.black, 8, Hr * 0.45, -Z0 - 80); box(g, 20, 26, 60, M.anod, 8, Hr * 0.45, -Z0 - 50);
+      g.add(tube([outlet, new T.Vector3(outlet.x - 150, FLOOR + 70, outlet.z + 20), new T.Vector3(outlet.x - 200, FLOOR + 30, outlet.z + 190),
+        new T.Vector3(110, FLOOR + 30, pz + 150), new T.Vector3(72, FLOOR + 150, pz + 74), new T.Vector3(70, Hb * 0.5, pz + 70), new T.Vector3(66, Hb - 150, pz + 72),
+        new T.Vector3(30, Hb - 78, pz + 170), new T.Vector3(0, Hb - 70, (pz + S0.z) / 2), S0.clone()], 26, M.rubber, 130));
+      [0.3, 0.6].forEach(function (f) { box(g, 60, 26, 60, M.black, 80, FLOOR + (Hb - FLOOR) * f, pz + 62); });
+      box(g, 60, 26, 40, M.black, 0, Hb - 58, (pz + S0.z) / 2);
+      var pal = new T.Group(); pal.position.set(1500, FLOOR, pz - 40); pal.rotation.y = 0.2; g.add(pal);
+      box(pal, 800, 22, 600, M.wood, 0, 133, 0); [-1, 0, 1].forEach(function (a) { box(pal, 800, 100, 90, M.wood, 0, 72, a * 250); }); box(pal, 800, 22, 600, M.wood, 0, 11, 0);
+      for (k = 0; k < 4; k++) [[-195, -140], [195, -140], [-195, 140], [195, 140]].forEach(function (q, i) {
+        if (k === 3 && i > 1) return;
+        var b = box(pal, 370, 96, 262, M.bag, q[0] + (k % 2 ? 8 : -8), 196 + k * 100, q[1]); b.rotation.y = (k % 2 ? 0.03 : -0.03);
+      });
 
-      // moving part of the hose (rebuilt when the head moves)
+      // ---- control cabinet at the front left
+      var cab = new T.Group(); cab.position.set(-X0 - 620, FLOOR, zmax - 150); cab.rotation.y = Math.PI / 2 - 0.25; g.add(cab);
+      box(cab, 300, 1150, 560, M.paint, 0, 615, 0); box(cab, 320, 40, 580, M.base, 0, 20, 0); box(cab, 4, 1080, 500, M.paint, -152, 615, 0);
+      box(cab, 3, 190, 280, M.screen, -155, 940, 0).castShadow = false; box(cab, 3, 10, 280, M.orange, -155, 810, 0);
+      cyl(cab, 34, 34, 6, M.yellow, -155, 690, -150, "x", 24); cyl(cab, 22, 26, 22, M.red, -168, 690, -150, "x", 24);
+      cyl(cab, 12, 12, 10, M.green, -157, 690, -30, "x", 16); cyl(cab, 12, 12, 10, M.black, -157, 690, 30, "x", 16); cyl(cab, 26, 26, 12, M.black, -157, 690, 150, "x", 20);
+      box(cab, 6, 60, 12, M.black, -156, 500, 220);
+
+      // ---- cable chain on the floor beside the left rail
+      var CH = { r: 62, pitch: 34, x: -X0 - 210, y0: FLOOR + 12, zA: zmin - 40 };
+      box(g, 90, 6, RL, M.anod, CH.x, FLOOR + 3, zc); box(g, 5, 40, RL, M.anod, CH.x - 46, FLOOR + 20, zc); box(g, 5, 40, RL, M.anod, CH.x + 46, FLOOR + 20, zc);
+      CH.zMax = zmax; CH.len = Math.PI * CH.r + (CH.zMax - CH.zA) + 120; CH.n = Math.ceil(CH.len / CH.pitch);
+      var links = new T.InstancedMesh(new T.BoxGeometry(70, 24, CH.pitch - 4), M.black, CH.n); links.castShadow = true; g.add(links);
+      box(bridge, 110, 14, 70, M.anod, -X0 - 160, CH.y0 + 2 * CH.r + 30, 0);
+
+      var dummy = new T.Object3D(), nozzleFor = -1;
       out.hose = null;
-      // drag chain along the left Y beam
-      var CH = { r: 46, pitch: 30, x: -X0 - P / 2 - 46, y0: Hr - 96, zA: -Z0 + 70 };
-      box(g, 70, 4, 2 * Z0 + P - 20, M.anod, CH.x, CH.y0 - 2, 0); box(g, 4, 26, 2 * Z0 + P - 20, M.anod, CH.x - 35, CH.y0 + 10, 0);
-      [-0.8, -0.3, 0.3, 0.8].forEach(function (f) { box(g, 46, 10, 30, M.anod, CH.x + 22, CH.y0 - 8, f * Z0); });
-      CH.zMax = Z0 - 40; CH.len = Math.PI * CH.r + (CH.zMax - CH.zA) + 90; CH.n = Math.ceil(CH.len / CH.pitch);
-      var links = new T.InstancedMesh(new T.BoxGeometry(56, 20, CH.pitch - 4), M.black, CH.n); links.castShadow = true; g.add(links);
-      box(bridge, 60, 12, 60, M.anod, CH.x + 6, CH.y0 + 2 * CH.r + 24, 0); box(bridge, 12, 2 * CH.r + 40 + (Hr + 42 - CH.y0 - 2 * CH.r - 20), 60, M.anod, -X0 - P / 2 - 14, (CH.y0 + 2 * CH.r + 30 + Hr + 56) / 2, 0);
-      out.chain = CH; out.links = links;
-
-      var dummy = new T.Object3D();
-      out.update = function (tip, nozzleR) {
-        bridge.position.z = tip.z - (ZOFF + 8);              // the nozzle hangs in front of the bridge
-        car.position.x = tip.x;
-        mast.position.y = tip.y;
-        var s = nozzleR / 22; out.tipMesh.scale.set(s, 1, s);
-        // chain
+      out.update = function (tip, wallh, yaw) {
+        bridge.position.z = tip.z - ZAX; car.position.x = tip.x; mast.position.y = tip.y; headRot.rotation.y = yaw;
+        if (wallh !== nozzleFor) {                       // the nozzle opening is as wide as the layer
+          nozzleFor = wallh; var ow = Math.max(24, wallh * 0.92);
+          out.nozzle.geometry.dispose(); out.nozzle.geometry = frustumGeometry(84, 84, ow, 36, HEAD - 181, 16);
+          out.lip.scale.set(ow + 8, 16, 44); out.lip.position.set(0, 8, 0);
+        }
         var zB = Math.min(CH.zMax, Math.max(CH.zA + 20, bridge.position.z));
         var zL = (CH.len - Math.PI * CH.r + CH.zA + zB) / 2, a = zL - CH.zA;
         for (var i = 0; i < CH.n; i++) {
           var sA = i * CH.pitch + CH.pitch / 2;
-          if (sA < a) { dummy.position.set(CH.x, CH.y0 + 10, CH.zA + sA); dummy.rotation.set(0, 0, 0); }
-          else if (sA < a + Math.PI * CH.r) { var th = (sA - a) / CH.r; dummy.position.set(CH.x, CH.y0 + 10 + CH.r * (1 - Math.cos(th)), zL + CH.r * Math.sin(th)); dummy.rotation.set(-th, 0, 0); }
-          else { dummy.position.set(CH.x, CH.y0 + 10 + 2 * CH.r, zL - (sA - a - Math.PI * CH.r)); dummy.rotation.set(Math.PI, 0, 0); }
+          if (sA < a) { dummy.position.set(CH.x, CH.y0 + 12, CH.zA + sA); dummy.rotation.set(0, 0, 0); }
+          else if (sA < a + Math.PI * CH.r) { var th = (sA - a) / CH.r; dummy.position.set(CH.x, CH.y0 + 12 + CH.r * (1 - Math.cos(th)), zL + CH.r * Math.sin(th)); dummy.rotation.set(-th, 0, 0); }
+          else { dummy.position.set(CH.x, CH.y0 + 12 + 2 * CH.r, zL - (sA - a - Math.PI * CH.r)); dummy.rotation.set(Math.PI, 0, 0); }
           dummy.updateMatrix(); links.setMatrixAt(i, dummy.matrix);
         }
         links.instanceMatrix.needsUpdate = true;
-        // hose from the guide up and over to the top of the mast
-        var top = new T.Vector3(tip.x, tip.y + HEAD + Lz + 60, tip.z);
-        var dx = top.x - S0.x, dz = top.z - S0.z, rise = top.y - S0.y;
-        var hp = [S0.clone(), new T.Vector3(S0.x + dx * 0.06, S0.y + 0.5 * rise + 60, S0.z + dz * 0.12),
-                  new T.Vector3(top.x - dx * 0.3, top.y + 210, top.z - dz * 0.32),
-                  new T.Vector3(top.x - dx * 0.03, top.y + 150, top.z - dz * 0.05), top];
+        // hose: hangs from the boom and runs to the clamp at the top of the mast
+        var E = new T.Vector3(tip.x, tip.y + HEAD + Lz - 70, tip.z - 80), dist = S0.distanceTo(E);
+        var mid = S0.clone().lerp(E, 0.5); mid.y = Math.min(S0.y, E.y) - 150 - 0.3 * Math.max(0, 1100 - dist);
+        var hp = [S0.clone(), new T.Vector3(S0.x + (E.x - S0.x) * 0.06, S0.y - 150, S0.z + 70), mid,
+                  new T.Vector3(E.x - (E.x - S0.x) * 0.05, E.y + 210, E.z - 90), new T.Vector3(E.x, E.y + 90, E.z - 14), E];
         if (out.hose) { out.hose.geometry.dispose(); g.remove(out.hose); }
-        out.hose = tube(hp, 24, M.rubber, 40); g.add(out.hose);
+        out.hose = tube(hp, 26, M.rubber, 44); g.add(out.hose);
       };
       return out;
     }
@@ -889,6 +869,7 @@
         var pts = path.pts, rev = !g.closed && (full % 2 === 1), n = pts.length, x = part * NS, p0, p1, f;
         if (g.closed) { var i0 = Math.floor(x) % n; p0 = pts[i0]; p1 = pts[(i0 + 1) % n]; f = x - Math.floor(x); }
         else { var xi = rev ? NS - x : x, i1 = Math.min(NS - 1, Math.max(0, Math.floor(xi))); p0 = pts[i1]; p1 = pts[i1 + 1]; f = xi - i1; }
+        var tx = p1.x - p0.x, tz = p1.z - p0.z; out.yaw = Math.atan2(rev ? -tx : tx, rev ? -tz : tz);   // direction of travel
         return new T.Vector3(p0.x + (p1.x - p0.x) * f, (full + 1) * g.tl, p0.z + (p1.z - p0.z) * f);
       };
       return out;
@@ -904,12 +885,12 @@
       camera.position.set(cam.tx + cam.dist * ce * Math.sin(cam.az), cam.ty + cam.dist * Math.sin(cam.el), cam.tz + cam.dist * ce * Math.cos(cam.az));
       camera.lookAt(cam.tx, cam.ty, cam.tz); dirty = true;
     }
-    var fitR = 1500, fitY = 400;
+    var fitR = 1500, fitY = 400, fitZ = 0, wallFit = { r: 700, y: 120 };
     function viewPreset(name, instant) {
-      var v = { iso: [0.66, 0.36], front: [0, 0.12], side: [Math.PI / 2, 0.12], top: [0.0001, 1.5] }[name];
+      var v = { iso: [0.66, 0.33], wall: [0.7, 0.42], front: [0, 0.12], side: [Math.PI / 2, 0.12], top: [0.0001, 1.5] }[name];
       var aspect = camera.aspect || 1.5, half = T.MathUtils.degToRad(camera.fov / 2);
-      var d = fitR / Math.sin(Math.min(half, Math.atan(Math.tan(half) * aspect)));
-      var to = { az: v[0], el: v[1], dist: d, tx: 0, ty: fitY, tz: -140 };
+      var close = name === "wall", d = (close ? wallFit.r : fitR) / Math.sin(Math.min(half, Math.atan(Math.tan(half) * aspect)));
+      var to = { az: v[0], el: v[1], dist: d, tx: 0, ty: close ? wallFit.y : fitY, tz: close ? 0 : fitZ };
       if (instant) { Object.keys(to).forEach(function (k) { cam[k] = to[k]; }); applyCam(); return; }
       var da = to.az - cam.az; da = Math.atan2(Math.sin(da), Math.cos(da)); to.az = cam.az + da;
       camTo = { from: Object.assign({}, cam), to: to, t: 0 };
@@ -974,9 +955,11 @@
           if (printer) dispose(printer.group);
           printer = buildPrinter(g.W, g.D, maxWall); world.add(printer.group);
           var first = key === ""; key = k;
-          fitY = printer.Hr * 0.78; fitR = Math.hypot(printer.X0 + 260, printer.Z0 + 380, printer.Hr * 1.02);
-          sun.position.set(-1500, printer.topY + 2200, 2100); sun.target.position.set(0, 200, -150);
-          var sc = sun.shadow.camera, ext = Math.max(printer.X0, printer.Z0) + 1000;
+          var halfZ = (printer.zmax - printer.zmin) / 2; fitZ = (printer.zmin + printer.zmax) / 2 - 120;
+          fitY = printer.Hr * 0.55; fitR = Math.hypot(printer.X0 + 330, halfZ + 420, printer.Hr * 0.95) * 0.86;
+          wallFit = { r: Math.hypot(g.W / 2 + 260, g.D / 2 + 260, maxWall * 0.6 + 120), y: Math.min(maxWall, 420) * 0.5 };
+          sun.position.set(-1900, printer.topY + 2600, 2500); sun.target.position.set(0, 200, fitZ);
+          var sc = sun.shadow.camera, ext = Math.max(printer.X0, halfZ) + 1700;
           sc.left = -ext; sc.right = ext; sc.top = ext; sc.bottom = -ext; sc.near = 200; sc.far = printer.topY + 6500; sc.updateProjectionMatrix();
           if (first) viewPreset("iso", true); else { cam.ty = fitY; applyCam(); }
         }
@@ -994,11 +977,10 @@
         if (failed) { tip = wall.tipAt(g.fail, 0); tip.y = g.fail * g.tl + 14 + 90 * smooth(Math.min(1, amount * 2.5)); }
         else if (full >= g.layers) { tip = wall.tipAt(g.layers, 0); tip.y = g.layers * g.tl + 100; }
         else tip = wall.tipAt(full, part);
-        var nr = Math.max(14, Math.min(34, g.h * 0.42));
-        printer.update(tip, nr);
+        printer.update(tip, g.h, wall.yaw || 0);
         // fresh material leaving the nozzle
         bead.visible = !failed && full < g.layers && s > 0;
-        if (bead.visible) { bead.scale.set(nr * 0.95, g.tl + 2, nr * 0.95); bead.position.set(tip.x, tip.y - g.tl / 2 + 1, tip.z); }
+        if (bead.visible) { bead.scale.set(g.h * 0.9, g.tl + 2, 30); bead.position.set(tip.x, tip.y - g.tl / 2 + 1, tip.z); bead.rotation.y = wall.yaw || 0; }
         dirty = true;
       },
       view: function (name) { touched = true; viewPreset(name); },
