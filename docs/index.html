@@ -25,6 +25,8 @@
   --warn: #a8690f;
   --warn-soft: #f5e8cf;
   --scene: #e3e7e1;
+  --s1: #2f6db0;
+  --s2: #c9691a;
   --shadow: 0 1px 2px rgba(27,35,31,.06), 0 6px 18px rgba(27,35,31,.07);
   --f-display: "Archivo", "Arial Narrow", Arial, sans-serif;
   --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
@@ -36,7 +38,7 @@
     --bg: #111512; --panel: #191e1b; --panel-2: #202622; --ink: #e6ece7; --muted: #98a59d;
     --line: #2b342e; --accent: #62c389; --accent-ink: #0c1a11; --accent-soft: #1d3327;
     --fail: #f0715a; --fail-soft: #3a1f19; --warn: #e2ab4e; --warn-soft: #372b14;
-    --scene: #171c19; --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 22px rgba(0,0,0,.35);
+    --scene: #171c19; --s1: #4f86c6; --s2: #c27a30; --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 22px rgba(0,0,0,.35);
     color-scheme: dark;
   }
 }
@@ -44,7 +46,7 @@
   --bg: #111512; --panel: #191e1b; --panel-2: #202622; --ink: #e6ece7; --muted: #98a59d;
   --line: #2b342e; --accent: #62c389; --accent-ink: #0c1a11; --accent-soft: #1d3327;
   --fail: #f0715a; --fail-soft: #3a1f19; --warn: #e2ab4e; --warn-soft: #372b14;
-  --scene: #171c19; --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 22px rgba(0,0,0,.35);
+  --scene: #171c19; --s1: #4f86c6; --s2: #c27a30; --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 22px rgba(0,0,0,.35);
   color-scheme: dark;
 }
 
@@ -196,6 +198,37 @@ dl.kv dd { margin: 0; text-align: right; font-family: var(--f-mono); font-varian
 .refs { font-size: 12px; color: var(--muted); margin: 0; padding-left: 16px; }
 .refs a { color: var(--accent); }
 
+.linkbtn { border: 1px solid var(--line); background: var(--panel-2); border-radius: 6px; padding: 6px 10px; cursor: pointer; white-space: nowrap; }
+.linkbtn:hover { border-color: var(--accent); }
+.ask { border: 1px solid var(--line); border-radius: 8px; padding: 10px; background: var(--panel-2); display: flex; flex-direction: column; gap: 8px; }
+.ask b { font: 600 13px/1.2 var(--f-display); }
+.ask .line { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.ask input { width: 72px; background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; text-align: right; font-family: var(--f-mono); font-size: 12.5px; }
+.ask output { display: block; font-size: 13px; }
+.ask output strong { font: 500 15px var(--f-mono); }
+.ask button { align-self: flex-start; border: 1px solid var(--accent); background: transparent; color: var(--accent); border-radius: 6px; padding: 5px 10px; cursor: pointer; font-weight: 500; }
+.ask button:disabled { opacity: .45; cursor: default; }
+.rail .band { position: absolute; top: 0; bottom: 0; background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--fail) 45%, transparent) 0 3px, transparent 3px 6px); }
+.mk { position: absolute; top: 4px; width: 10px; height: 10px; transform: translate(-50%, 2px) rotate(45deg); background: var(--ink); border: 2px solid var(--panel); box-sizing: content-box; margin: -2px; }
+.mk.paper { background: var(--panel); border-color: var(--ink); }
+.legend { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 12px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { display: inline-block; flex: none; }
+.legend .k-pred { width: 2px; height: 12px; background: var(--fail); }
+.legend .k-band { width: 14px; height: 10px; border-radius: 2px; background: repeating-linear-gradient(135deg, color-mix(in srgb, var(--fail) 45%, transparent) 0 3px, transparent 3px 6px); border: 1px solid var(--line); }
+.legend .k-obs, .legend .k-paper { width: 7px; height: 7px; transform: rotate(45deg); background: var(--ink); border: 1.5px solid var(--ink); }
+.legend .k-paper { background: var(--panel); }
+.legend b { color: var(--ink); font-weight: 500; font-family: var(--f-mono); }
+.chart svg { display: block; width: 100%; height: auto; cursor: crosshair; touch-action: none; }
+.chart text { font: 10.5px var(--f-mono); fill: var(--muted); }
+.chart text.lab { font: 500 11px var(--f-body); fill: var(--ink); }
+.chart .read { font-size: 12.5px; min-height: 2.9em; margin: 6px 0 0; }
+.chart .key { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12px; color: var(--muted); margin: 0 0 6px; }
+.chart .key span { display: inline-flex; align-items: center; gap: 6px; }
+.chart .key i { width: 16px; height: 0; border-top: 2.5px solid var(--s1); display: inline-block; }
+.chart .key i.p { border-top: 2.5px dashed var(--s2); }
+.chart .key i.a { height: 9px; border: 0; background: var(--accent-soft); border-radius: 2px; }
+
 @media (max-width: 1180px) {
   body { height: auto; min-height: 100%; }
   .desk { grid-template-columns: 280px minmax(0, 1fr); }
@@ -235,6 +268,7 @@ dl.kv dd { margin: 0; text-align: right; font-family: var(--f-mono); font-varian
     <label for="preset">Example</label>
     <select id="preset"></select>
   </div>
+  <button type="button" class="linkbtn" id="copy" hidden>Copy link to these settings</button>
   <a href="https://github.com/iamilio/sapling-3dcp">Code on GitHub</a>
 </header>
 
@@ -253,6 +287,14 @@ dl.kv dd { margin: 0; text-align: right; font-family: var(--f-mono); font-varian
     </div>
     <h2>Print</h2>
     <div class="group" id="fieldsPrint"></div>
+    <div class="group">
+      <div class="ask">
+        <b>How fast can I print?</b>
+        <div class="line"><label for="target">Layers to reach</label><input type="number" id="target" min="2" max="400" step="1" value="40"></div>
+        <output id="askOut" for="target">Calculating…</output>
+        <button type="button" id="askUse" disabled>Use this time per layer</button>
+      </div>
+    </div>
     <h2>Fresh concrete</h2>
     <div class="group" id="fieldsMat"></div>
   </section>
@@ -292,7 +334,8 @@ dl.kv dd { margin: 0; text-align: right; font-family: var(--f-mono); font-varian
         </button>
       </div>
       <div class="track" id="track" role="slider" tabindex="0" aria-label="Print progress" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0">
-        <div class="rail" id="rail"><div class="zone" id="zone"></div><div class="fill" id="fill"></div></div>
+        <div class="rail" id="rail"><div class="zone" id="zone"></div><div class="band" id="band"></div><div class="fill" id="fill"></div></div>
+        <div id="marks"></div>
         <div class="head" id="head"></div>
         <div class="ticks" id="ticks"></div>
       </div>
@@ -305,6 +348,7 @@ dl.kv dd { margin: 0; text-align: right; font-family: var(--f-mono); font-varian
           <button type="button" data-v="8" aria-pressed="false">8×</button>
         </div>
       </div>
+      <div class="legend" id="legend"></div>
     </div>
   </section>
 
@@ -317,6 +361,8 @@ dl.kv dd { margin: 0; text-align: right; font-family: var(--f-mono); font-varian
       <h2>Buckling mode</h2>
       <div class="group"><div class="shape" id="shape"></div></div>
     </div>
+    <h2>Height against wall thickness</h2>
+    <div class="group"><div class="chart" id="chart"></div></div>
     <h2>Model values</h2>
     <div class="group"><dl class="kv" id="kv"></dl></div>
     <div class="group" id="notes"></div>

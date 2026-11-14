@@ -84,7 +84,7 @@ The deformed shape it shows after failure is an illustration. For buckling it us
 
 ## Web version
 
-`docs/` holds a browser version of Sapling: the solver ported to JavaScript (`docs/sapling-solver.js`) and a 3D print twin with live inputs and a print timeline. The JavaScript solver uses the same equations, numerical scheme and step counts as `sapling.py` and gives the same buckling lengths for all published cases in the tests. The deformed shapes drawn after failure are illustrations, as in the Grasshopper preview.
+`docs/` holds a browser version of Sapling: the solver ported to JavaScript (`docs/sapling-solver.js`) and a 3D print twin with live inputs and a print timeline. It also shows where the printed walls of the papers failed, the result for material properties 10% lower and higher, the shortest safe time per layer for a target number of layers, and the critical height against wall thickness. The JavaScript solver uses the same equations, numerical scheme and step counts as `sapling.py` and gives the same buckling lengths for all published cases in the tests. The deformed shapes drawn after failure are illustrations, as in the Grasshopper preview.
 
 ## Verification
 

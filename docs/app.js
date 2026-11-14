@@ -9,28 +9,30 @@
 
   // ================================================================ inputs
   // Units as in the Grasshopper component: mm, s, kg/m3, kPa, 1/min.
+  // paper: failure layer given by the model in the paper; observed: failure layers of the printed walls
+  var BASE = { b: 500, d: 250, nu: 0.3, curing: "linear", betaE: 2.5, gammaE: 5 };
   var PRESETS = [
-    { name: "Square wall 500 mm (Suiker et al. 2020)", layout: "square", b: 500, d: 250, h: 55, tl: 9.5, Tl: 19.2,
-      rho: 2100, E0: 48.564, xiE: 0.0537, sig0: 2.835, xiS: 0.116, nu: 0.3, curing: "linear", betaE: 2.5, gammaE: 5,
-      note: "The paper reports 27 layers for this wall. The two printed walls failed at 27 and 28." },
-    { name: "Square wall 250 mm (Suiker et al. 2020)", layout: "square", b: 250, d: 250, h: 55, tl: 9.5, Tl: 9.6,
-      rho: 2100, E0: 48.564, xiE: 0.0537, sig0: 2.835, xiS: 0.116, nu: 0.3, curing: "linear", betaE: 2.5, gammaE: 5,
-      note: "The paper reports plastic collapse at 21 layers for this wall." },
+    { name: "Square wall 500 mm (Suiker et al. 2020)", layout: "square", b: 500, h: 55, tl: 9.5, Tl: 19.2,
+      rho: 2100, E0: 48.564, xiE: 0.0537, sig0: 2.835, xiS: 0.116, paper: 27, observed: [27, 28],
+      note: "Two walls were printed. Both buckled, at 27 and 28 layers." },
+    { name: "Square wall 250 mm (Suiker et al. 2020)", layout: "square", b: 250, h: 55, tl: 9.5, Tl: 9.6,
+      rho: 2100, E0: 48.564, xiE: 0.0537, sig0: 2.835, xiS: 0.116, paper: 21, observed: [23],
+      note: "The printed walls collapsed plastically at 23 layers. The paper obtains 23 as well when it uses the slightly lower layer height that was measured." },
     { name: "Rectangle 625 × 250 mm (Suiker 2018)", layout: "rect", b: 625, d: 250, h: 43.5, tl: 9.2, Tl: 21,
-      rho: 2020, E0: 78.1, xiE: 0.0156, sig0: 5.984, xiS: 0.0246, nu: 0.3, curing: "linear", betaE: 2.5, gammaE: 5,
-      note: "The paper reports 30 layers for this rectangle." },
-    { name: "Free wall 1.0 m (Wolfs & Suiker 2019)", layout: "free", b: 500, d: 250, h: 60, tl: 9.5, Tl: 9.6,
-      rho: 2100, E0: 39.5, xiE: 0.0432, sig0: 1000000, xiS: 0, nu: 0.3, curing: "linear", betaE: 2.5, gammaE: 5,
-      note: "The paper reports 19 layers. The yield strength is set very high here, so only buckling is checked." },
-    { name: "Free wall 10.4 m, linear curing (Wolfs & Suiker 2019)", layout: "free", b: 500, d: 250, h: 60, tl: 9.5, Tl: 99.8,
-      rho: 2100, E0: 39.5, xiE: 0.0432, sig0: 1000000, xiS: 0, nu: 0.3, curing: "linear", betaE: 2.5, gammaE: 5,
-      note: "The printed wall failed at 46 layers. Linear curing predicts far fewer, because the material cures faster in a long session. One metre of the wall is drawn." },
-    { name: "Free wall 10.4 m, quadratic curing (Wolfs & Suiker 2019)", layout: "free", b: 500, d: 250, h: 60, tl: 9.5, Tl: 99.8,
-      rho: 2100, E0: 39.5, xiE: 0.0432, sig0: 1000000, xiS: 0, nu: 0.3, curing: "quadratic", betaE: 2.5, gammaE: 5,
-      note: "The printed wall failed at 46 layers. The coefficient 2.5 was fitted by the authors to this wall, so the match is a fit and not a prediction. One metre of the wall is drawn." },
-    { name: "Wall 690 mm, no failure (Suiker et al. 2020)", layout: "square", b: 690, d: 250, h: 55, tl: 9.5, Tl: 88,
-      rho: 2100, E0: 55, xiE: 0.42, sig0: 2.835, xiS: 0.116, nu: 0.3, curing: "linear", betaE: 2.5, gammaE: 5,
-      note: "Second material batch of the paper, printed slowly. The model predicts no failure. The wall is drawn here as a square." }
+      rho: 2020, E0: 78.1, xiE: 0.0156, sig0: 5.984, xiS: 0.0246, paper: 30, observed: [33],
+      note: "The printed rectangle buckled at 33 layers. The paper notes a spread of 13 to 21% in the measured material properties." },
+    { name: "Free wall 1.0 m (Wolfs & Suiker 2019)", layout: "free", h: 60, tl: 9.5, Tl: 9.6,
+      rho: 2100, E0: 39.5, xiE: 0.0432, sig0: 1000000, xiS: 0, paper: 19, observed: [21],
+      note: "The printed wall buckled at 21 layers. The yield strength is set very high here, so only buckling is checked." },
+    { name: "Free wall 10.4 m, linear curing (Wolfs & Suiker 2019)", layout: "free", h: 60, tl: 9.5, Tl: 99.8,
+      rho: 2100, E0: 39.5, xiE: 0.0432, sig0: 1000000, xiS: 0, paper: null, observed: [46],
+      note: "The printed wall buckled at 46 layers. Linear curing predicts far fewer, because the material cures faster in a long session. One metre of the wall is drawn." },
+    { name: "Free wall 10.4 m, quadratic curing (Wolfs & Suiker 2019)", layout: "free", h: 60, tl: 9.5, Tl: 99.8,
+      rho: 2100, E0: 39.5, xiE: 0.0432, sig0: 1000000, xiS: 0, curing: "quadratic", paper: null, observed: [46],
+      note: "The printed wall buckled at 46 layers. The coefficient 2.5 was fitted by the authors to this wall, so the match is a fit and not a prediction. One metre of the wall is drawn." },
+    { name: "Wall 690 mm, no failure (Suiker et al. 2020)", layout: "square", b: 690, h: 55, tl: 9.5, Tl: 88,
+      rho: 2100, E0: 55, xiE: 0.42, sig0: 2.835, xiS: 0.116, paper: null, observed: [], layers: 80,
+      note: "Second material batch of the paper, printed slowly. The real object was printed to 80 layers (760 mm) without failing. The wall is drawn here as a square." }
   ];
 
   var FIELDS = {
@@ -117,13 +119,14 @@
   }
 
   function loadPreset(i) {
-    var p = PRESETS[i];
-    Object.keys(p).forEach(function (k) { state[k] = p[k]; });
-    state.presetNote = p.note; state.presetIndex = i;
+    var p = PRESETS[i], keep = state.target || 40;
+    Object.keys(BASE).forEach(function (k) { state[k] = BASE[k]; });
+    Object.keys(p).forEach(function (k) { if (k !== "name" && k !== "note" && k !== "paper" && k !== "observed" && k !== "layers") state[k] = p[k]; });
+    state.target = keep; state.presetNote = p.note; state.presetIndex = i; state.preset = p; $("preset").value = String(i);
     syncInputs(); atEnd = true; compute();
   }
   function changed() {
-    if (state.presetNote) { state.presetNote = null; $("preset").value = "custom"; }
+    if (state.preset) { state.presetNote = null; state.preset = null; $("preset").value = "custom"; }
     syncInputs(); scheduleCompute();
   }
   var pending = false;
@@ -135,7 +138,7 @@
   // ================================================================ solve
   var NO_FAIL_LAYERS = 45, COLLAPSE = 3.0, HOLD = 1.5;
 
-  function compute() {
+  function params(over) {
     var p = { h: state.h / 1000, tl: state.tl / 1000, Tl: state.Tl, rho: state.rho, E0: state.E0 * 1000, nu: state.nu,
               xiE: state.xiE / 60, sig0: state.sig0 * 1000, xiS: state.xiS / 60 };
     if (state.layout === "free") p.edge = "free";
@@ -143,11 +146,31 @@
     else { p.edge = "rect"; p.b = Math.max(state.b, state.d) / 1000; p.d = Math.min(state.b, state.d) / 1000; }
     if (state.curing === "quadratic") p.betaE = state.betaE;
     if (state.curing === "exponential") p.gammaE = state.gammaE;
+    if (over) Object.keys(over).forEach(function (k) { p[k] = over[k]; });
+    return p;
+  }
+  function pathLength() {            // length of one layer, mm (not defined for the free wall: its real length is not an input)
+    if (state.layout === "free") return null;
+    var W = state.layout === "square" ? state.b : Math.max(state.b, state.d), D = state.layout === "square" ? state.b : Math.min(state.b, state.d);
+    var rc = Math.min(50, 0.14 * Math.min(W, D));
+    return 2 * (W + D) - 8 * rc + 2 * Math.PI * rc;
+  }
+
+  var band = null, jobs = 0;
+  function compute() {
+    var p = params();
     try { result = S.assess(p); } catch (err) { result = null; }
     if (!result) return;
-    var fail = result.n, layers = fail === null ? NO_FAIL_LAYERS : fail;
+    // the same wall with initial stiffness and strength 10% lower and 10% higher
+    try {
+      band = { lo: S.assess(params({ E0: p.E0 * 0.9, sig0: p.sig0 * 0.9 })).n, hi: S.assess(params({ E0: p.E0 * 1.1, sig0: p.sig0 * 1.1 })).n };
+    } catch (err2) { band = null; }
+    var pre = state.preset, fail = result.n, layers = fail === null ? ((pre && pre.layers) || NO_FAIL_LAYERS) : fail;
+    var total = fail === null ? layers : fail + COLLAPSE + HOLD, scale = total;
+    if (pre) pre.observed.concat(pre.paper ? [pre.paper] : []).forEach(function (n) { scale = Math.max(scale, n + 1.5); });
+    if (band && fail !== null && band.hi !== null) scale = Math.max(scale, Math.min(band.hi + 1.5, total * 1.6));
     geo = {
-      fail: fail, layers: layers, total: fail === null ? layers : fail + COLLAPSE + HOLD,
+      fail: fail, layers: layers, total: total, scale: scale,
       mode: result.mode, shape: result.shape, h: state.h, tl: state.tl,
       W: state.layout === "free" ? 1000 : (state.layout === "square" ? state.b : Math.max(state.b, state.d)),
       D: state.layout === "free" ? 0 : (state.layout === "square" ? state.b : Math.min(state.b, state.d)),
@@ -156,7 +179,134 @@
     step = atEnd ? geo.total : Math.min(step, geo.total);
     renderReport(); renderTimeline();
     if (scene3d) { scene3d.setPrint(geo); }
-    renderStep();
+    renderStep(); writeHash();
+    // the slower questions run after the page has been redrawn
+    var job = ++jobs;
+    $("askOut").textContent = "Calculating…"; $("askUse").disabled = true;
+    setTimeout(function () { if (job === jobs) solveTarget(job); }, 160);
+    setTimeout(function () { if (job === jobs) sweep(job); }, 260);
+  }
+
+  // ================================================================ how fast can I print?
+  var askTl = null;
+  function solveTarget(job) {
+    var N = Math.max(2, Math.round(state.target || 40));
+    function safe(Tl) { var r = S.assess(params({ Tl: Tl })); return r.n === null || r.n > N; }
+    var lo = 1, hi = 2, phase = 0, out = $("askOut");
+    function done(html, tl) { if (job !== jobs) return; out.innerHTML = html; askTl = tl; $("askUse").disabled = tl === null || Math.abs(tl - state.Tl) < 0.05; }
+    function stepSearch() {
+      if (job !== jobs) return;
+      try {
+        if (phase === 0) {
+          if (safe(lo)) return done("Safe at any speed: " + N + " layers hold even at 1 s per layer.", null);
+          phase = 1;
+        } else if (phase === 1) {
+          if (safe(hi)) phase = 2; else { lo = hi; hi *= 2; if (hi > 14400) return done("Printing slower does not help: " + N + " layers are out of reach for this wall and material.", null); }
+        } else {
+          for (var i = 0; i < 3 && hi - lo > 0.05; i++) { var mid = 0.5 * (lo + hi); if (safe(mid)) hi = mid; else lo = mid; }
+          if (hi - lo <= 0.05) {
+            var tl = Math.ceil(hi * 10) / 10, len = pathLength();
+            return done("Shortest time per layer: <strong>" + fmt(tl, 1) + " s</strong>" +
+              (len ? ", a nozzle speed of " + fmt(len / tl, 0) + " mm/s on this path" : "") + ". " + N + " layers then take " + clock(N * tl) +
+              ". No safety margin is included.", tl);
+          }
+        }
+      } catch (err) { return done("Could not be calculated for these inputs.", null); }
+      setTimeout(stepSearch, 0);
+    }
+    stepSearch();
+  }
+
+  // ================================================================ height against wall thickness
+  var chartData = null;
+  function sweep(job) {
+    var xs = [], i; for (i = 25; i <= 100; i += 2.5) xs.push(i);
+    var pts = [], k = 0, host = $("chart");
+    if (!chartData) host.innerHTML = '<p class="hint">Calculating…</p>';
+    function chunk() {
+      if (job !== jobs) return;
+      for (var c = 0; c < 3 && k < xs.length; c++, k++) {
+        var r; try { r = S.assess(params({ h: xs[k] / 1000, sig0: 1e15, xiS: 0, Lmax: 20 })); } catch (e) { r = null; }
+        pts.push({ h: xs[k], lcr: r && r.lcr !== Infinity ? r.lcr * 1000 : null });
+      }
+      if (k < xs.length) { setTimeout(chunk, 0); return; }
+      chartData = { pts: pts, lp: result.lp === Infinity ? null : result.lp * 1000 };
+      drawChart();
+    }
+    chunk();
+  }
+  function drawChart() {
+    var d = chartData, host = $("chart"); if (!d) return;
+    var W = 284, H = 190, L = 38, R = 10, T = 12, B = 30, lp = d.lp;
+    var known = d.pts.filter(function (q) { return q.lcr !== null; });
+    var top = Math.max.apply(null, known.map(function (q) { return q.lcr; }).concat(lp ? [lp] : [0]));
+    if (lp) top = Math.min(top, lp * 2.1);
+    if (!(top > 0)) { host.innerHTML = '<p class="hint">No failure is predicted for any wall thickness between 25 and 100 mm.</p>'; return; }
+    top *= 1.08;
+    var niceStep = [50, 100, 200, 250, 500, 1000, 2000, 5000].filter(function (v) { return top / v <= 4.5; })[0] || 10000;
+    function X(h) { return L + (W - L - R) * (h - 25) / 75; }
+    function Y(v) { return T + (H - T - B) * (1 - Math.min(v, top) / top); }
+    var gov = function (q) { var a = q.lcr === null ? Infinity : q.lcr, b = lp === null ? Infinity : lp; return Math.min(a, b); };
+    var svg = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Critical height against wall thickness">';
+    for (var v = 0; v <= top; v += niceStep) svg += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(v) + '" y2="' + Y(v) + '" stroke="var(--line)" stroke-width="1"/><text x="' + (L - 5) + '" y="' + (Y(v) + 3.5) + '" text-anchor="end">' + v + "</text>";
+    [25, 50, 75, 100].forEach(function (hx) { svg += '<text x="' + X(hx) + '" y="' + (H - B + 14) + '" text-anchor="middle">' + hx + "</text>"; });
+    svg += '<text x="' + (L + (W - L - R) / 2) + '" y="' + (H - 3) + '" text-anchor="middle">wall thickness, mm</text><text x="4" y="' + (T - 2) + '">mm</text>';
+    // printable height: below both lines
+    var area = "M" + X(25) + "," + Y(0);
+    d.pts.forEach(function (q) { var g = gov(q); area += " L" + X(q.h).toFixed(1) + "," + Y(g === Infinity ? top : g).toFixed(1); });
+    svg += '<path d="' + area + " L" + X(100) + "," + Y(0) + ' Z" fill="var(--accent-soft)"/>';
+    if (lp && lp <= top) svg += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(lp) + '" y2="' + Y(lp) + '" stroke="var(--s2)" stroke-width="2" stroke-dasharray="6 4"/>';
+    var line = "", pen = false;
+    d.pts.forEach(function (q) { if (q.lcr === null || q.lcr > top) { pen = false; return; } line += (pen ? " L" : " M") + X(q.h).toFixed(1) + "," + Y(q.lcr).toFixed(1); pen = true; });
+    svg += '<path d="' + line + '" fill="none" stroke="var(--s1)" stroke-width="2" stroke-linejoin="round"/>';
+    // where buckling hands over to plastic collapse
+    var cross = null;
+    if (lp) for (var i = 1; i < d.pts.length; i++) {
+      var a = d.pts[i - 1], b = d.pts[i]; if (a.lcr === null || b.lcr === null) continue;
+      if ((a.lcr - lp) * (b.lcr - lp) <= 0 && a.lcr !== b.lcr) { cross = a.h + (b.h - a.h) * (lp - a.lcr) / (b.lcr - a.lcr); break; }
+    }
+    if (cross !== null) {
+      svg += '<circle cx="' + X(cross) + '" cy="' + Y(lp) + '" r="4.5" fill="var(--panel)" stroke="var(--ink)" stroke-width="1.5"/>';
+      var right = cross < 70;
+      svg += '<text class="lab" x="' + (X(cross) + (right ? 8 : -8)) + '" y="' + (Y(lp) + 15) + '" text-anchor="' + (right ? "start" : "end") + '">switch at ' + fmt(cross, 0) + " mm</text>";
+    }
+    var cur = Math.max(25, Math.min(100, state.h)), gh = result.H === null ? null : result.H * 1000;
+    svg += '<line x1="' + X(cur) + '" x2="' + X(cur) + '" y1="' + T + '" y2="' + (H - B) + '" stroke="var(--ink)" stroke-width="1" stroke-dasharray="2 3"/>';
+    if (gh !== null && gh <= top) svg += '<circle cx="' + X(cur) + '" cy="' + Y(gh) + '" r="4.5" fill="var(--fail)" stroke="var(--panel)" stroke-width="2"/>';
+    svg += '<line id="chartHover" x1="0" x2="0" y1="' + T + '" y2="' + (H - B) + '" stroke="var(--muted)" stroke-width="1" visibility="hidden"/></svg>';
+    var def = "This wall: " + fmt(state.h, 1) + " mm thick" + (gh === null ? ", no failure predicted." : ", fails at " + fmt(gh, 0) + " mm.") + " Point at the chart to read other thicknesses; click to use one.";
+    host.innerHTML = '<p class="key"><span><i></i>Elastic buckling</span><span><i class="p"></i>Plastic collapse</span><span><i class="a"></i>Printable</span></p>' + svg + '<p class="read hint" id="chartRead">' + def + "</p>";
+    var el = host.querySelector("svg"), hov = el.querySelector("#chartHover");
+    function hAt(e) { var r = el.getBoundingClientRect(); var hx = 25 + 75 * ((e.clientX - r.left) / r.width * W - L) / (W - L - R); return Math.max(25, Math.min(100, Math.round(hx / 2.5) * 2.5)); }
+    el.addEventListener("pointermove", function (e) {
+      var hx = hAt(e), q = d.pts[Math.round((hx - 25) / 2.5)]; if (!q) return;
+      hov.setAttribute("x1", X(hx)); hov.setAttribute("x2", X(hx)); hov.setAttribute("visibility", "visible");
+      var g = gov(q);
+      $("chartRead").textContent = fmt(hx, 1) + " mm thick: buckling at " + (q.lcr === null ? "more than " + fmt(20 * result.L0 * 1000, 0) : fmt(q.lcr, 0)) + " mm, plastic collapse at " +
+        (lp === null ? "no height" : fmt(lp, 0) + " mm") + ". " + (g === Infinity ? "No failure." : (q.lcr !== null && (lp === null || q.lcr < lp) ? "Buckling decides." : "Plastic collapse decides."));
+    });
+    el.addEventListener("pointerleave", function () { hov.setAttribute("visibility", "hidden"); $("chartRead").textContent = def; });
+    el.addEventListener("click", function (e) { state.h = hAt(e); changed(); });
+  }
+
+  // ================================================================ link to these settings
+  var ORDER = [["b", 1], ["d", 1], ["h", 10], ["tl", 10], ["Tl", 10], ["rho", 1], ["E0", 1000], ["xiE", 10000], ["sig0", 1000], ["xiS", 1000], ["nu", 100], ["betaE", 10], ["gammaE", 10], ["target", 1]];
+  function encodeState() {
+    if (state.preset) return "example-" + (state.presetIndex + 1);
+    return "s1-" + state.layout.charAt(0) + state.curing.charAt(0) + "-" + ORDER.map(function (o) { return Math.round(state[o[0]] * o[1]); }).join("-");
+  }
+  function decodeState(hash) {
+    var m = /^example-(\d+)$/.exec(hash);
+    if (m && PRESETS[+m[1] - 1]) return { preset: +m[1] - 1 };
+    var parts = hash.split("-");
+    if (parts[0] !== "s1" || parts.length !== ORDER.length + 2 || !/^[fsr][lqe]$/.test(parts[1])) return null;
+    var o = { layout: { f: "free", s: "square", r: "rect" }[parts[1].charAt(0)], curing: { l: "linear", q: "quadratic", e: "exponential" }[parts[1].charAt(1)] };
+    for (var i = 0; i < ORDER.length; i++) { var v = parseInt(parts[i + 2], 10); if (!isFinite(v) || v < 0) return null; o[ORDER[i][0]] = v / ORDER[i][1]; }
+    if (!(o.h > 0 && o.tl > 0 && o.Tl > 0 && o.rho > 0 && o.E0 > 0 && o.sig0 > 0 && o.b > 0 && o.d > 0 && o.nu > 0 && o.nu < 0.5)) return null;
+    return { state: o };
+  }
+  function writeHash() {
+    try { history.replaceState(null, "", "#" + encodeState()); } catch (err) { /* not allowed in this frame: the page works without it */ }
   }
 
   // ================================================================ report
@@ -173,6 +323,11 @@
         "<h3>Fails at layer " + r.n + "</h3>" +
         "<p>Critical height " + mm(r.H) + " mm, reached after " + clock(r.H / r.ldot) + " of printing. " +
         (buck ? "The wall is too slender for its weight and bends sideways." : "The bottom layer yields under the weight above it.") + "</p>";
+    }
+    if (band) {
+      var nm = function (n) { return n === null ? "no failure" : "layer " + n; }, same = band.lo === band.hi && band.lo === r.n;
+      v.innerHTML += '<p style="margin-top:8px">With initial stiffness and strength 10% lower or higher: ' +
+        (same ? "the same result." : "<b>" + nm(band.lo) + " to " + nm(band.hi) + "</b>.") + "</p>";
     }
     var fin = function (x) { return x !== Infinity && x !== null; };
     var top = Math.max(fin(r.lcr) ? r.lcr : 0, fin(r.lp) ? r.lp : 0, r.limit * 0.5) || 1;
@@ -214,18 +369,36 @@
 
   // ================================================================ timeline
   function renderTimeline() {
-    var g = geo, rail = $("rail");
-    rail.style.setProperty("--n", g.total);
+    var g = geo, rail = $("rail"), pre = state.preset, pc = function (n) { return (100 * n / g.scale) + "%"; };
+    rail.style.setProperty("--n", g.scale);
     var zone = $("zone");
     if (g.fail === null) zone.style.display = "none";
-    else { zone.style.display = ""; zone.style.left = (100 * g.fail / g.total) + "%"; }
-    var t = "", every = g.layers > 60 ? 10 : 5;
-    for (var i = 0; i <= g.layers; i += every) {
-      if (g.fail !== null && g.fail - i < every * 0.6 && i !== g.fail) continue;
-      t += '<span style="left:' + (100 * i / g.total) + '%">' + i + "</span>";
+    else { zone.style.display = ""; zone.style.left = pc(g.fail); }
+    var bd = $("band"), showBand = band && g.fail !== null && !(band.lo === band.hi && band.lo === g.fail);
+    if (showBand) {
+      var lo = band.lo === null ? g.scale : Math.min(band.lo, g.scale), hi = band.hi === null ? g.scale : Math.min(band.hi, g.scale);
+      bd.style.display = ""; bd.style.left = pc(Math.min(lo, hi)); bd.style.width = pc(Math.abs(hi - lo));
+    } else bd.style.display = "none";
+    var marks = "", taken = {};
+    if (pre) {
+      pre.observed.forEach(function (n) { marks += '<span class="mk" style="left:' + pc(n) + '" title="A printed wall failed at layer ' + n + '"></span>'; taken[n] = 1; });
+      if (pre.paper && !taken[pre.paper]) marks += '<span class="mk paper" style="left:' + pc(pre.paper) + '" title="Model value in the paper: layer ' + pre.paper + '"></span>';
     }
-    if (g.fail !== null) t += '<span class="f" style="left:' + (100 * g.fail / g.total) + '%">' + g.fail + "</span>";
+    $("marks").innerHTML = marks;
+    var t = "", every = g.scale > 60 ? 10 : 5;
+    for (var i = 0; i <= g.scale - 1; i += every) {
+      if (g.fail !== null && Math.abs(g.fail - i) < every * 0.6 && i !== g.fail) continue;
+      t += '<span style="left:' + pc(i) + '">' + i + "</span>";
+    }
+    if (g.fail !== null) t += '<span class="f" style="left:' + pc(g.fail) + '">' + g.fail + "</span>";
     $("ticks").innerHTML = t;
+    var lg = [];
+    lg.push('<span><i class="k-pred"></i>Sapling: <b>' + (g.fail === null ? "no failure" : "layer " + g.fail) + "</b></span>");
+    if (showBand) lg.push('<span><i class="k-band"></i>Material ±10%: <b>' + (band.lo === null ? "no failure" : band.lo) + " to " + (band.hi === null ? "no failure" : band.hi) + "</b></span>");
+    if (pre && pre.paper) lg.push('<span><i class="k-paper"></i>Model in the paper: <b>' + pre.paper + "</b></span>");
+    if (pre && pre.observed.length) lg.push('<span><i class="k-obs"></i>Printed walls: <b>' + pre.observed.join(", ") + "</b></span>");
+    if (pre && pre.layers) lg.push("<span>Printed for real: <b>" + pre.layers + " layers, no failure</b></span>");
+    $("legend").innerHTML = lg.join("");
   }
 
   function renderStep() {
@@ -233,7 +406,7 @@
     var failed = g.fail !== null && step >= g.fail;
     var printed = failed ? g.fail : Math.min(step, g.layers);
     var done = g.fail === null && step >= g.layers;
-    var pct = 100 * step / g.total;
+    var pct = 100 * step / g.scale;
     $("fill").style.width = pct + "%"; $("fill").className = "fill" + (failed ? " failed" : "");
     $("head").style.left = pct + "%";
     $("track").setAttribute("aria-valuenow", (step / g.total).toFixed(3));
@@ -285,7 +458,6 @@
   function makeScene(canvas) {
     var T = window.THREE;
     var renderer = new T.WebGLRenderer({ canvas: canvas, antialias: true, alpha: false, powerPreference: "high-performance" });
-    renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
     renderer.outputEncoding = T.sRGBEncoding;
     renderer.toneMapping = T.LinearToneMapping;
     renderer.toneMappingExposure = 0.8;
@@ -350,6 +522,8 @@
 
     // ---- small builders
     var world = new T.Group(); scene.add(world);
+    var beadMat = std("#6f7570", 0, 0.9);
+    var bead = new T.Mesh(new T.CylinderGeometry(1, 1.25, 1, 20), beadMat); bead.visible = false; world.add(bead);
     var printer = null, wall = null;
     function shadow(m, cast, recv) { m.castShadow = cast !== false; m.receiveShadow = recv !== false; return m; }
     function box(parent, w, h, d, mat, x, y, z) { var m = shadow(new T.Mesh(new T.BoxGeometry(w, h, d), mat)); m.position.set(x, y, z); parent.add(m); return m; }
@@ -714,6 +888,9 @@
 
     // ================================================== camera
     var cam = { az: 0.66, el: 0.36, dist: 4000, tx: 0, ty: 300, tz: 0 }, camTo = null, dirty = true;
+    // until someone takes the camera, the view turns slowly around the printer
+    var touched = false, born = (window.performance && performance.now()) || 0;
+    var calm = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     function applyCam() {
       var ce = Math.cos(cam.el);
       camera.position.set(cam.tx + cam.dist * ce * Math.sin(cam.az), cam.ty + cam.dist * Math.sin(cam.el), cam.tz + cam.dist * ce * Math.cos(cam.az));
@@ -733,6 +910,8 @@
       var ptrs = {}, last = null, pinch = 0;
       function unpress() { Array.prototype.forEach.call($("views").children, function (b) { b.setAttribute("aria-pressed", "false"); }); }
       canvas.addEventListener("contextmenu", function (e) { e.preventDefault(); });
+      canvas.addEventListener("pointerdown", function () { touched = true; });
+      canvas.addEventListener("wheel", function () { touched = true; }, { passive: true });
       canvas.addEventListener("pointerdown", function (e) { canvas.setPointerCapture(e.pointerId); ptrs[e.pointerId] = { x: e.clientX, y: e.clientY, b: e.button, sh: e.shiftKey }; last = null; pinch = 0; camTo = null; });
       canvas.addEventListener("pointermove", function (e) {
         var p = ptrs[e.pointerId]; if (!p) return;
@@ -757,6 +936,10 @@
 
     function resize() {
       var r = canvas.parentElement.getBoundingClientRect(); if (r.width < 2 || r.height < 2) return;
+      // render at twice the screen resolution where affordable: the layer lines are finer than a pixel from far away
+      var pr = Math.max(2, Math.min(3, window.devicePixelRatio || 1));
+      pr = Math.min(pr, Math.sqrt(6.5e6 / (r.width * r.height)));
+      renderer.setPixelRatio(Math.max(1, pr));
       renderer.setSize(r.width, r.height, false); camera.aspect = r.width / r.height; camera.updateProjectionMatrix(); dirty = true;
     }
     if (window.ResizeObserver) new ResizeObserver(resize).observe(canvas.parentElement); else window.addEventListener("resize", resize);
@@ -803,10 +986,14 @@
         if (failed) { tip = wall.tipAt(g.fail, 0); tip.y = g.fail * g.tl + 14 + 90 * smooth(Math.min(1, amount * 2.5)); }
         else if (full >= g.layers) { tip = wall.tipAt(g.layers, 0); tip.y = g.layers * g.tl + 100; }
         else tip = wall.tipAt(full, part);
-        printer.update(tip, Math.max(14, Math.min(34, g.h * 0.42)));
+        var nr = Math.max(14, Math.min(34, g.h * 0.42));
+        printer.update(tip, nr);
+        // fresh material leaving the nozzle
+        bead.visible = !failed && full < g.layers && s > 0;
+        if (bead.visible) { bead.scale.set(nr * 0.95, g.tl + 2, nr * 0.95); bead.position.set(tip.x, tip.y - g.tl / 2 + 1, tip.z); }
         dirty = true;
       },
-      view: function (name) { viewPreset(name); },
+      view: function (name) { touched = true; viewPreset(name); },
       look: function (o) { camTo = null; Object.keys(o).forEach(function (k) { cam[k] = o[k]; }); applyCam(); }
     };
 
@@ -819,6 +1006,7 @@
         Object.keys(camTo.to).forEach(function (k) { cam[k] = camTo.from[k] + (camTo.to[k] - camTo.from[k]) * e; });
         if (camTo.t >= 1) camTo = null; applyCam();
       }
+      if (!touched && !calm && !camTo && t - born > 7000 && !document.hidden) { cam.az += Math.min(0.05, (t - prev) / 1000) * 0.07; applyCam(); }
       prev = t;
       if (dirty) { dirty = false; renderer.render(scene, camera); }
     })(0);
@@ -850,7 +1038,7 @@
 
   (function scrub() {
     var tr = $("track"), down = false;
-    function at(e) { var r = tr.getBoundingClientRect(); step = geo.total * Math.max(0, Math.min(1, (e.clientX - r.left) / r.width)); atEnd = step >= geo.total - 1e-6; renderStep(); }
+    function at(e) { var r = tr.getBoundingClientRect(); step = Math.min(geo.total, geo.scale * Math.max(0, Math.min(1, (e.clientX - r.left) / r.width))); atEnd = step >= geo.total - 1e-6; renderStep(); }
     tr.addEventListener("pointerdown", function (e) { if (!geo) return; down = true; tr.setPointerCapture(e.pointerId); setPlaying(false); at(e); });
     tr.addEventListener("pointermove", function (e) { if (down) at(e); });
     tr.addEventListener("pointerup", function () { down = false; }); tr.addEventListener("pointercancel", function () { down = false; });
@@ -864,6 +1052,23 @@
     e.preventDefault(); $("play").click();
   });
 
+  $("target").addEventListener("change", function () {
+    var v = Math.round(parseFloat($("target").value)); if (!isFinite(v) || v < 2) v = 40; v = Math.min(400, v);
+    $("target").value = v; state.target = v; writeHash();
+    var job = ++jobs; $("askOut").textContent = "Calculating…"; $("askUse").disabled = true;
+    setTimeout(function () { if (job === jobs) { solveTarget(job); if (!chartData) sweep(job); } }, 60);
+  });
+  $("askUse").addEventListener("click", function () { if (askTl === null) return; state.Tl = askTl; changed(); });
+  var framed = false; try { framed = window.top !== window.self; } catch (errF) { framed = true; }
+  if (!framed && navigator.clipboard) {
+    $("copy").hidden = false;
+    $("copy").addEventListener("click", function () {
+      var b = $("copy"), old = "Copy link to these settings";
+      navigator.clipboard.writeText(location.href).then(function () { b.textContent = "Link copied"; }, function () { b.textContent = "Copy the address from the address bar"; });
+      setTimeout(function () { b.textContent = old; }, 2200);
+    });
+  }
+
   try {
     if (!window.THREE) throw new Error("three.js did not load");
     scene3d = makeScene($("gl")); window.SaplingTwin = scene3d;
@@ -871,5 +1076,17 @@
     scene3d = null; $("nogl").style.display = "flex"; $("gl").style.display = "none";
     if (window.console) console.error(err);
   }
-  loadPreset(0);
+  state.target = 40;
+  var start = decodeState((location.hash || "").replace(/^#/, ""));
+  if (start && start.state) {
+    loadPreset(0); Object.keys(start.state).forEach(function (k) { state[k] = start.state[k]; });
+    state.preset = null; state.presetNote = null; $("preset").value = "custom"; $("target").value = state.target;
+    syncInputs(); compute();
+  } else loadPreset(start ? start.preset : 0);
+  window.addEventListener("hashchange", function () {
+    var h2 = (location.hash || "").replace(/^#/, ""); if (h2 === encodeState()) return;
+    var d2 = decodeState(h2); if (!d2) return;
+    if (d2.state) { Object.keys(d2.state).forEach(function (k) { state[k] = d2.state[k]; }); state.preset = null; state.presetNote = null; $("preset").value = "custom"; $("target").value = state.target; syncInputs(); compute(); }
+    else loadPreset(d2.preset);
+  });
 })();
