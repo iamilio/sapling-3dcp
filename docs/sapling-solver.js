@@ -14,7 +14,14 @@
 
   // gamma: null -> linear; number -> exponential, E_inf/E0 = gamma;
   //        {quad: beta} -> quadratic, g = 1 + a + beta a^2
+  //        {pow: m} -> power law, g = (1 + a)^m (accelerated curing)
   function curing(Ebar, gamma) {
+    if (gamma && typeof gamma === "object" && gamma.pow !== undefined) {
+      var m = +gamma.pow;
+      return [function (a) { return Math.pow(1 + a, m); },
+              function (a) { return -Ebar * m * Math.pow(1 + a, m - 1); },
+              function (a) { return Ebar * Ebar * m * (m - 1) * Math.pow(1 + a, m - 2); }];
+    }
     if (gamma && typeof gamma === "object") {
       var be = gamma.quad;
       return [function (a) { return 1 + a + be * a * a; },
@@ -182,11 +189,30 @@
     return out.map(function (v) { return sign * v / big; });
   }
 
+  // x = l_p rho g / sig0 for sig(t) = sig0 (1 + xiS t)^n: smallest x > 0 with x = (1 + abar x)^n
+  function plasticLengthFactor(abar, n) {
+    n = n || 1;
+    if (Math.abs(n - 1) < 1e-12) return abar < 1 ? 1 / (1 - abar) : Infinity;
+    if (abar <= 0) return 1;
+    function f(x) { return Math.pow(1 + abar * x, n) - x; }
+    var lo = 0, hi;
+    if (n > 1) {
+      var xm = (Math.pow(1 / (n * abar), 1 / (n - 1)) - 1) / abar;
+      if (xm <= 0 || f(xm) > 0) return Infinity;
+      hi = xm;
+    } else {
+      hi = 1; while (f(hi) > 0) { hi *= 2; if (hi > 1e12) return Infinity; }
+    }
+    for (var i = 0; i < 200; i++) { var mid = 0.5 * (lo + hi); if (f(mid) > 0) lo = mid; else hi = mid; }
+    return 0.5 * (lo + hi);
+  }
+
   // SI units in, object out. p: {h, tl, Tl, rho, E0, nu, xiE, sig0, xiS,
   //   b, edge, gammaE, d, Ky, scaling, Lmax, betaE}
   function assess(p) {
     var gammaE = (p.gammaE === undefined) ? null : p.gammaE;
     if (p.betaE) gammaE = { quad: +p.betaE };
+    if (p.mE && Math.abs(+p.mE - 1) > 1e-12) gammaE = { pow: +p.mE };
     var Lmax = p.Lmax === undefined ? 60.0 : p.Lmax;
     var edge = p.edge || "free", scaling = p.scaling || "paper";
     var ldot = p.tl / p.Tl;
@@ -196,7 +222,7 @@
     var bbar = (p.b === undefined || p.b === null) ? null : p.b / L0;
     var dbar = (p.d === undefined || p.d === null) ? null : p.d / L0;
     var abar = p.sig0 * p.xiS / (p.rho * G * ldot);
-    var lp = abar < 1 ? (p.sig0 / (p.rho * G)) / (1 - abar) : Infinity;
+    var lp = (p.sig0 / (p.rho * G)) * plasticLengthFactor(abar, p.nS ? +p.nS : 1);
     var limit = lp === Infinity ? Lmax : Math.min(Lmax, 1.02 * lp / L0 + 0.5);
     var opt = { bbar: bbar, edge: edge, nu: p.nu, gamma: gammaE, Ky: p.Ky, dbar: dbar, scaling: scaling, Lmax: limit };
     var lcr = criticalLength(Ebar, opt) * L0;
@@ -211,14 +237,14 @@
       warn.push("Clamped wall at a high curing rate: the model overestimates finite-element results by up to 15% (Wolfs & Suiker 2019, Sec. 3.2). 'Simply supported' is the safe bound.");
     if (H !== null && gammaE === null && H / ldot > 1200.0)
       warn.push("Failure after " + (H / ldot / 60).toFixed(0) + " min of printing: linear curing is calibrated for short sessions and underestimated long walls in Wolfs & Suiker 2019.");
-    if (edge === "rect" && typeof gammaE === "number")
-      warn.push("Rectangular layout with exponential curing is outside the published formulas (Eq. 67 is for linear curing).");
+    if (edge === "rect" && (typeof gammaE === "number" || (gammaE && gammaE.pow !== undefined)))
+      warn.push("Rectangular layout with " + (typeof gammaE === "number" ? "exponential" : "power-law") + " curing is outside the published formulas (Eq. 67 is for linear curing).");
     return { ldot: ldot, D0: D0, L0: L0, Ebar: Ebar, bbar: bbar, abar: abar, lcr: lcr, lp: lp,
              H: H, mode: mode, n: n, limit: limit * L0, warnings: warn, shape: shape };
   }
 
   var api = { G: G, criticalLength: criticalLength, modeShape: modeShape, assess: assess,
-              nyOfKr: nyOfKr, cyOfKr: cyOfKr, version: "0.2.0" };
+              plasticLengthFactor: plasticLengthFactor, nyOfKr: nyOfKr, cyOfKr: cyOfKr, version: "0.2.0" };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.SaplingSolver = api;
 })(typeof self !== "undefined" ? self : this);

@@ -154,3 +154,28 @@ if __name__ == "__main__":
         print("ok   " + t.__name__)
     print("%d buckling lengths, %d failure-layer cases reproduced"
           % (len(LCR_CASES), len(LAYER_CASES)))
+
+
+# ---- power-law (accelerated) curing, Suiker (2022) ---------------------------
+# The plastic collapse rule is Eq. (25) of the paper. For buckling the paper
+# gives no table, so the values below were read from the solid (numerical)
+# curves of its Fig. 11; the reading is good to a few per cent.
+def test_power_law_fig11():
+    close(sp.critical_length(10.0, Lmax=12), 7.77, 0.03)                       # m = 1
+    close(sp.critical_length(7.50, gamma=("pow", 1.2), Lmax=12), 10.0, 0.03)
+    close(sp.critical_length(3.26, gamma=("pow", 1.5), Lmax=12), 10.0, 0.05)
+    close(sp.critical_length(1.42, gamma=("pow", 2.0), Lmax=12), 10.0, 0.06)
+
+
+def test_power_law_limits():
+    # exponent 1 is linear curing
+    for kw in (dict(Ebar=0.5), dict(Ebar=0.1566, bbar=5.763, edge="simply")):
+        close(sp.critical_length(gamma=("pow", 1.0), **kw), sp.critical_length(**kw), 1e-9)
+    # (1 + a/2)^2 = 1 + a + a^2/4: exponent 2 is quadratic curing with beta = 1/4
+    close(sp.critical_length(0.2, gamma=("pow", 2.0)),
+          sp.critical_length(0.4, gamma=("quad", 0.25)), 1e-9)
+    # plastic collapse: exponent 1 is the closed form of [S18]
+    close(sp.plastic_length_factor(0.538, 1.0), 1.0 / (1.0 - 0.538), 1e-12)
+    x = sp.plastic_length_factor(0.05, 3.0)
+    assert abs((1 + 0.05 * x) ** 3 - x) < 1e-9
+    assert sp.plastic_length_factor(0.2, 3.0) == sp.INF     # strength stays ahead

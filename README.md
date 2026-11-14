@@ -43,6 +43,8 @@ Sapling implements the parametric model developed at Eindhoven University of Tec
 | `Edge` | str | | `free`, `simply`, `clamped` or `rect` |
 | `gammaE` | float | | Final over initial stiffness, for exponential curing (empty = linear) |
 | `betaE` | float | | Curing acceleration, for quadratic curing (empty = 0) |
+| `mE` | float | | Exponent of power-law stiffness curing, `E = E0 (1 + xiE t)^mE` (empty = 1) |
+| `nS` | float | | Exponent of power-law strength curing, `sig = sig0 (1 + xiS t)^nS` (empty = 1) |
 | `Ky` | float | | Coefficient of lateral stress (empty = `nu`) |
 | `RectScaling` | str | | `paper` (default) or `consistent`; see the notes in `sapling.py` |
 | `Htarget` | float | mm | Intended height, used for the preview when no failure is predicted |
@@ -88,14 +90,15 @@ The deformed shape it shows after failure is an illustration. For buckling it us
 
 ## Verification
 
-`tests/test_reproduction.py` reruns the published values of the three papers:
+`tests/test_reproduction.py` reruns published values of the papers:
 
 ```
 python -m pytest tests
 ```
 
 - 26 dimensionless buckling lengths, including the cases compared with finite-element analysis in Wolfs & Suiker (2019).
-- 10 failure-layer cases, covering the printed walls of all three papers.
+- 10 failure-layer cases, covering the printed walls of the 2018, 2019 and 2020 papers.
+- Power-law (accelerated) curing of Suiker (2022). The plastic collapse rule is Eq. (25) of that paper. For buckling the paper gives a graph and no table, so the check is against values read from the numerical curves of its Fig. 11: within about 1 to 4% for exponents up to 2. With exponent 1 the law reproduces linear curing exactly, and with exponent 2 it reproduces the quadratic law exactly.
 
 Sapling integrates the governing equation directly. It is therefore 1 to 3% below the closed-form free-wall design formula of the papers, which in a few cases shifts the predicted failure by one layer.
 
@@ -107,8 +110,9 @@ These tests show that the implementation matches the published model. They are *
 - **Long print sessions.** With linear curing the model underestimated walls printed for more than about 20 minutes (24 layers predicted against 46 observed for a 10.4 m wall). Sapling warns in this range.
 - **Clamped walls.** At high curing rates the model exceeds finite-element results by up to 15%. Sapling warns; `simply` is the safe bound.
 - **Imperfections** are not modelled.
-- **Plastic collapse** uses linear strength curing only.
-- **Rectangular layouts** require equal wall thickness and linear or quadratic stiffness curing.
+- **Plastic collapse** uses linear or power-law strength curing. The effect of vertical layer deformations (Suiker 2022, Sec. 3) is not included.
+- **Power-law curing** is checked for free walls. For exponents of 3 and higher the buckling length rises very steeply with the curing rate, so a small error in the measured rate moves the result a lot.
+- **Rectangular layouts** require equal wall thickness and linear or quadratic stiffness curing. Sapling warns for exponential and power-law curing.
 - **Layer time from a path** ignores travel moves and acceleration.
 - **Inputs matter.** The result is sensitive to wall width and to the measured material parameters, which carry a scatter of 10 to 20% in the source papers. Treat the failure layer as an estimate with a margin of a few layers.
 
@@ -119,6 +123,9 @@ Sapling is a research tool. Do not use it as the only basis for decisions that a
 - A.S.J. Suiker (2018). Mechanical performance of wall structures in 3D printing processes: theory, design tools and experiments. *International Journal of Mechanical Sciences* 137, 145-170. https://doi.org/10.1016/j.ijmecsci.2018.01.010
 - R.J.M. Wolfs, A.S.J. Suiker (2019). Structural failure during extrusion-based 3D printing processes. *International Journal of Advanced Manufacturing Technology* 104, 565-584. https://doi.org/10.1007/s00170-019-03844-6
 - A.S.J. Suiker, R.J.M. Wolfs, S.M. Lucas, T.A.M. Salet (2020). Elastic buckling and plastic collapse during 3D concrete printing. *Cement and Concrete Research* 135, 106016. https://doi.org/10.1016/j.cemconres.2020.106016
+
+- A.S.J. Suiker (2022). Effect of accelerated curing and layer deformations on structural failure during extrusion-based 3D printing. *Cement and Concrete Research* 151, 106586. https://doi.org/10.1016/j.cemconres.2021.106586
+- A.H. Deetman, A.S.J. Suiker (2026). Characterization of early-age elastic-plastic properties of 3D printed materials using indentation testing. *International Journal of Mechanical Sciences* 310, 111141. https://doi.org/10.1016/j.ijmecsci.2025.111141 (source of the accelerated mortar example in the web version)
 
 If you use Sapling, please cite the papers above as the source of the model, and this repository for the implementation (see `CITATION.cff`).
 

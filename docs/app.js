@@ -10,7 +10,7 @@
   // ================================================================ inputs
   // Units as in the Grasshopper component: mm, s, kg/m3, kPa, 1/min.
   // paper: failure layer given by the model in the paper; observed: failure layers of the printed walls
-  var BASE = { b: 500, d: 250, nu: 0.3, curing: "linear", betaE: 2.5, gammaE: 5 };
+  var BASE = { b: 500, d: 250, nu: 0.3, curing: "linear", betaE: 2.5, gammaE: 5, mE: 3, nS: 3 };
   var PRESETS = [
     { name: "Square wall 500 mm (Suiker et al. 2020)", layout: "square", b: 500, h: 55, tl: 9.5, Tl: 19.2,
       rho: 2100, E0: 48.564, xiE: 0.0537, sig0: 2.835, xiS: 0.116, paper: 27, observed: [27, 28],
@@ -30,6 +30,9 @@
     { name: "Free wall 10.4 m, quadratic curing (Wolfs & Suiker 2019)", layout: "free", h: 60, tl: 9.5, Tl: 99.8,
       rho: 2100, E0: 39.5, xiE: 0.0432, sig0: 1000000, xiS: 0, curing: "quadratic", paper: null, observed: [46],
       note: "The printed wall buckled at 46 layers. The coefficient 2.5 was fitted by the authors to this wall, so the match is a fit and not a prediction. One metre of the wall is drawn." },
+    { name: "Accelerated mortar, square 500 mm (material of Deetman & Suiker 2025)", layout: "square", b: 500, h: 55, tl: 9.5, Tl: 19.2,
+      rho: 2100, E0: 83, xiE: 0.024, sig0: 5.505, xiS: 0.02, curing: "power", mE: 3, nS: 3, paper: null, observed: [],
+      note: "A prediction, not a reproduction: no wall was printed with this mortar in the paper. Stiffness and cohesion follow power laws with exponent 3, measured by indentation tests; the yield strength is the cohesion of 1.72 kPa at a friction angle of 26°. The density of 2100 kg/m³ is assumed, and the wall and print settings are those of the 500 mm example. Compression tests on the same mortar gave slower curing (0.020 and 0.015 per minute), which gives 46 layers." },
     { name: "Wall 690 mm, no failure (Suiker et al. 2020)", layout: "square", b: 690, h: 55, tl: 9.5, Tl: 88,
       rho: 2100, E0: 55, xiE: 0.42, sig0: 2.835, xiS: 0.116, paper: null, observed: [], layers: 80,
       note: "Second material batch of the paper, printed slowly. The real object was printed to 80 layers (760 mm) without failing. The wall is drawn here as a square." }
@@ -52,7 +55,9 @@
       { id: "sig0", label: "Initial yield strength", unit: "kPa", min: 0.5, max: 20, step: 0.001 },
       { id: "xiS", label: "Strength curing rate", unit: "1/min", min: 0, max: 1, step: 0.001 },
       { id: "nu", label: "Poisson ratio", unit: "", min: 0.1, max: 0.45, step: 0.01 },
-      { id: "curing", label: "Stiffness curing law", select: [["linear", "Linear"], ["quadratic", "Quadratic (long sessions)"], ["exponential", "Exponential (levels off)"]] },
+      { id: "curing", label: "Stiffness curing law", select: [["linear", "Linear"], ["quadratic", "Quadratic (long sessions)"], ["exponential", "Exponential (levels off)"], ["power", "Power law (accelerated)"]] },
+      { id: "mE", label: "Stiffness exponent", unit: "", min: 1, max: 4, step: 0.1, showCuring: "power" },
+      { id: "nS", label: "Strength exponent", unit: "", min: 1, max: 4, step: 0.1, showCuring: "power" },
       { id: "betaE", label: "Curing acceleration", unit: "", min: 0.1, max: 6, step: 0.1, showCuring: "quadratic" },
       { id: "gammaE", label: "Final over initial stiffness", unit: "", min: 1.1, max: 20, step: 0.1, showCuring: "exponential" }
     ]
@@ -97,6 +102,7 @@
         var v = parseFloat(num.value);
         if (!isFinite(v) || v < 0) { num.value = state[f.id]; return; }
         if (f.id !== "xiE" && f.id !== "xiS" && v === 0) { num.value = state[f.id]; return; }
+        if ((f.id === "mE" || f.id === "nS") && v < 1) { num.value = state[f.id]; return; }
         state[f.id] = v; rng.value = v; changed();
       });
     });
@@ -146,6 +152,7 @@
     else { p.edge = "rect"; p.b = Math.max(state.b, state.d) / 1000; p.d = Math.min(state.b, state.d) / 1000; }
     if (state.curing === "quadratic") p.betaE = state.betaE;
     if (state.curing === "exponential") p.gammaE = state.gammaE;
+    if (state.curing === "power") { p.mE = state.mE; p.nS = state.nS; }
     if (over) Object.keys(over).forEach(function (k) { p[k] = over[k]; });
     return p;
   }
@@ -290,19 +297,20 @@
   }
 
   // ================================================================ link to these settings
-  var ORDER = [["b", 1], ["d", 1], ["h", 10], ["tl", 10], ["Tl", 10], ["rho", 1], ["E0", 1000], ["xiE", 10000], ["sig0", 1000], ["xiS", 1000], ["nu", 100], ["betaE", 10], ["gammaE", 10], ["target", 1]];
+  var ORDER = [["b", 1], ["d", 1], ["h", 10], ["tl", 10], ["Tl", 10], ["rho", 1], ["E0", 1000], ["xiE", 10000], ["sig0", 1000], ["xiS", 1000], ["nu", 100], ["betaE", 10], ["gammaE", 10], ["target", 1], ["mE", 10], ["nS", 10]];
   function encodeState() {
     if (state.preset) return "example-" + (state.presetIndex + 1);
-    return "s1-" + state.layout.charAt(0) + state.curing.charAt(0) + "-" + ORDER.map(function (o) { return Math.round(state[o[0]] * o[1]); }).join("-");
+    return "s2-" + state.layout.charAt(0) + state.curing.charAt(0) + "-" + ORDER.map(function (o) { return Math.round(state[o[0]] * o[1]); }).join("-");
   }
   function decodeState(hash) {
     var m = /^example-(\d+)$/.exec(hash);
     if (m && PRESETS[+m[1] - 1]) return { preset: +m[1] - 1 };
     var parts = hash.split("-");
-    if (parts[0] !== "s1" || parts.length !== ORDER.length + 2 || !/^[fsr][lqe]$/.test(parts[1])) return null;
-    var o = { layout: { f: "free", s: "square", r: "rect" }[parts[1].charAt(0)], curing: { l: "linear", q: "quadratic", e: "exponential" }[parts[1].charAt(1)] };
-    for (var i = 0; i < ORDER.length; i++) { var v = parseInt(parts[i + 2], 10); if (!isFinite(v) || v < 0) return null; o[ORDER[i][0]] = v / ORDER[i][1]; }
-    if (!(o.h > 0 && o.tl > 0 && o.Tl > 0 && o.rho > 0 && o.E0 > 0 && o.sig0 > 0 && o.b > 0 && o.d > 0 && o.nu > 0 && o.nu < 0.5)) return null;
+    var count = parts[0] === "s2" ? ORDER.length : (parts[0] === "s1" ? ORDER.length - 2 : -1);     // s1 links have no exponents
+    if (count < 0 || parts.length !== count + 2 || !/^[fsr][lqep]$/.test(parts[1])) return null;
+    var o = { layout: { f: "free", s: "square", r: "rect" }[parts[1].charAt(0)], curing: { l: "linear", q: "quadratic", e: "exponential", p: "power" }[parts[1].charAt(1)], mE: 3, nS: 3 };
+    for (var i = 0; i < count; i++) { var v = parseInt(parts[i + 2], 10); if (!isFinite(v) || v < 0) return null; o[ORDER[i][0]] = v / ORDER[i][1]; }
+    if (!(o.h > 0 && o.tl > 0 && o.Tl > 0 && o.rho > 0 && o.E0 > 0 && o.sig0 > 0 && o.b > 0 && o.d > 0 && o.nu > 0 && o.nu < 0.5 && o.mE >= 1 && o.nS >= 1)) return null;
     return { state: o };
   }
   function writeHash() {

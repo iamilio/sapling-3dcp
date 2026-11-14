@@ -1,17 +1,19 @@
 """
-Sapling 0.2.0 - buildability check for 3D concrete printing
+Sapling 0.3.0 - buildability check for 3D concrete printing
 GhPython component (Rhino 7 IronPython / Rhino 8 CPython) and plain module.
 
 Implements the parametric model of Suiker (2018) for elastic buckling and
 plastic collapse of a straight printed wall, with the extensions of
-Wolfs & Suiker (2019) and Suiker et al. (2020). Pure Python, no numpy/scipy.
+Wolfs & Suiker (2019), Suiker et al. (2020) and the power-law (accelerated)
+curing of Suiker (2022). Pure Python, no numpy/scipy.
 
 Use in Grasshopper: paste this whole file into a Python script component.
 Use as a module:    import sapling; sapling.assess(...)   (SI units)
 
 Scope: straight vertical walls of uniform thickness; free, simply supported,
-clamped and rectangular lay-outs; linear, exponential and quadratic stiffness
-curing; linear strength curing. See README.md for limitations.
+clamped and rectangular lay-outs; linear, exponential, quadratic and power-law
+stiffness curing; linear and power-law strength curing. See README.md for
+limitations.
 
 Copyright (C) 2026 Ali Akbarzadeh
 License: GPL-3.0-or-later
@@ -33,6 +35,10 @@ INPUTS (set these names + type hints on the component):
     Edge     : str     'free' | 'simply' | 'clamped' | 'rect'
     gammaE   : float   E_inf/E0 for exponential curing (empty = linear)
     betaE    : float   curing acceleration for quadratic curing (empty = 0)
+    mE       : float   exponent of power-law stiffness curing,
+                       E = E0 (1 + xiE t)^mE (empty = 1, linear)
+    nS       : float   exponent of power-law strength curing,
+                       sig = sig0 (1 + xiS t)^nS (empty = 1, linear)
     Ky       : float   coefficient of lateral stress (empty = nu)
     RectScaling : str  'paper' | 'consistent'  (see note in rect_profile)
     Htarget  : float   intended print height [mm] (optional, for the report)
@@ -50,7 +56,7 @@ OUTPUTS:
 from __future__ import division
 import math
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
 G = 9.81
 INF = float("inf")
@@ -60,7 +66,13 @@ INF = float("inf")
 def _curing(Ebar, gamma):
     """g(a), dg/ds, d2g/ds2 with a = Ebar*(L - s), s measured from the bottom.
     gamma: None -> linear; float -> exponential with E_inf/E0 = gamma;
-           ("quad", beta) -> quadratic, g = 1 + a + beta*a^2."""
+           ("quad", beta) -> quadratic, g = 1 + a + beta*a^2;
+           ("pow", m)     -> power law, g = (1 + a)^m (accelerated curing)."""
+    if isinstance(gamma, tuple) and gamma[0] == "pow":
+        m = float(gamma[1])
+        return (lambda a: (1.0 + a) ** m,
+                lambda a: -Ebar * m * (1.0 + a) ** (m - 1.0),
+                lambda a: Ebar ** 2 * m * (m - 1.0) * (1.0 + a) ** (m - 2.0))
     if isinstance(gamma, tuple):
         be = gamma[1]
         return (lambda a: 1.0 + a + be * a * a,
@@ -268,12 +280,48 @@ def mode_shape(L, Ebar, bbar=None, edge="free", nu=0.3, gamma=None,
     return [sign * v / big for v in out]
 
 
+def plastic_length_factor(abar, n=1.0):
+    """Dimensionless plastic collapse length x = l_p rho g / sig0 for the
+    strength law sig(t) = sig0 (1 + xiS t)^n: the smallest x > 0 at which the
+    weight on the bottom layer equals its strength, x = (1 + abar x)^n, with
+    abar = sig0 xiS / (rho g ldot). Returns inf if the strength always stays
+    ahead of the load. n = 1 gives 1 / (1 - abar), Suiker (2018)."""
+    if abs(n - 1.0) < 1e-12:
+        return 1.0 / (1.0 - abar) if abar < 1 else INF
+    if abar <= 0:
+        return 1.0
+    f = lambda x: (1.0 + abar * x) ** n - x
+    if n > 1.0:
+        # f starts at 1 and has one minimum; no root if the minimum is positive
+        xm = ((1.0 / (n * abar)) ** (1.0 / (n - 1.0)) - 1.0) / abar
+        if xm <= 0 or f(xm) > 0:
+            return INF
+        lo, hi = 0.0, xm
+    else:
+        lo, hi = 0.0, 1.0
+        while f(hi) > 0:
+            hi *= 2.0
+            if hi > 1e12:
+                return INF
+    for _ in range(200):
+        mid = 0.5 * (lo + hi)
+        if f(mid) > 0:
+            lo = mid
+        else:
+            hi = mid
+    return 0.5 * (lo + hi)
+
+
 def assess(h, tl, Tl, rho, E0, nu, xiE, sig0, xiS, b=None, edge="free",
            gammaE=None, d=None, Ky=None, scaling="paper", Lmax=60.0,
-           betaE=None):
-    """SI units in, dict out."""
+           betaE=None, mE=None, nS=None):
+    """SI units in, dict out.
+    mE: exponent of power-law stiffness curing, E = E0 (1 + xiE t)^mE.
+    nS: exponent of power-law strength curing, sig = sig0 (1 + xiS t)^nS."""
     if betaE:
         gammaE = ("quad", float(betaE))
+    if mE and abs(float(mE) - 1.0) > 1e-12:
+        gammaE = ("pow", float(mE))
     ldot = tl / Tl
     D0 = E0 * h ** 3 / (12 * (1 - nu ** 2))
     L0 = (D0 / (rho * G * h)) ** (1.0 / 3)
@@ -281,7 +329,7 @@ def assess(h, tl, Tl, rho, E0, nu, xiE, sig0, xiS, b=None, edge="free",
     bbar = None if b is None else b / L0
     dbar = None if d is None else d / L0
     abar = sig0 * xiS / (rho * G * ldot)
-    lp = (sig0 / (rho * G)) / (1 - abar) if abar < 1 else INF
+    lp = (sig0 / (rho * G)) * plastic_length_factor(abar, float(nS) if nS else 1.0)
     # buckling beyond the plastic collapse length is irrelevant: bound the search
     limit = Lmax if lp == INF else min(Lmax, 1.02 * lp / L0 + 0.5)
     lcr = critical_length(Ebar, bbar, edge, nu, gammaE, Ky, dbar, scaling,
@@ -307,6 +355,9 @@ def assess(h, tl, Tl, rho, E0, nu, xiE, sig0, xiS, b=None, edge="free",
                     "walls in Wolfs & Suiker 2019" % (H / ldot / 60.0))
     if edge == "rect" and isinstance(gammaE, float):
         warn.append("rectangular lay-out with exponential curing is outside "
+                    "the published formulas (Eq. 67 is for linear curing)")
+    if edge == "rect" and isinstance(gammaE, tuple) and gammaE[0] == "pow":
+        warn.append("rectangular lay-out with power-law curing is outside "
                     "the published formulas (Eq. 67 is for linear curing)")
     return dict(ldot=ldot, D0=D0, L0=L0, Ebar=Ebar, bbar=bbar, abar=abar,
                 lcr=lcr, lp=lp, H=H, mode=mode, n=n, limit=limit * L0,
@@ -334,7 +385,7 @@ def _gh_main():
               gammaE=val("gammaE"),
               d=None if dd is None else dd / 1000.0, Ky=val("Ky"),
               scaling=(val("RectScaling", "paper") or "paper").strip().lower(),
-              betaE=val("betaE"))
+              betaE=val("betaE"), mE=val("mE"), nS=val("nS"))
     # Results are kept per set of inputs, so returning to values that were
     # already solved (e.g. dragging a slider back) is immediate.
     try:
