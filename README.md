@@ -2,6 +2,8 @@
 
 **[Watch the 1-minute demo](https://youtu.be/vBs35CAS1EA)**
 
+**[Try it in the browser](https://iamilio.github.io/sapling-3dcp/)**: the same solver with a 3D print twin, no Rhino needed.
+
 **How tall can your print grow?** Sapling is a buildability check for 3D concrete printing in Rhino Grasshopper. Given a wall, a material and a print speed, it predicts the height at which the fresh wall fails during printing, and whether it fails by **elastic buckling** or **plastic collapse**.
 
 Sapling implements the parametric model developed at Eindhoven University of Technology by A.S.J. Suiker and co-workers. It is an independent implementation and is not affiliated with or endorsed by the authors.
@@ -79,6 +81,10 @@ Expected: elastic buckling at 247 mm, 26 layers. The paper predicts 27 and the t
 Optional inputs: `Camera` (`story` or `orbit`) moves the camera of the active Rhino viewport with `Step`, for exporting an animation with the slider's Animate function; `Zoom` sets the camera distance; `Segments` sets the resolution along the path. In the 500 mm example, raising `h` above 62 mm changes the predicted failure from elastic buckling to plastic collapse.
 
 The deformed shape it shows after failure is an illustration. For buckling it uses the mode shape along the height computed by Sapling, with an amplitude chosen for visibility, since a buckling mode has no defined amplitude. For plastic collapse it is a sketch of the mechanism described in Suiker et al. (2020). Do not read displacements off the preview.
+
+## Web version
+
+`docs/` holds a browser version of Sapling: the solver ported to JavaScript (`docs/sapling-solver.js`) and a 3D print twin with live inputs and a print timeline. The JavaScript solver uses the same equations, numerical scheme and step counts as `sapling.py` and gives the same buckling lengths for all published cases in the tests. The deformed shapes drawn after failure are illustrations, as in the Grasshopper preview.
 
 ## Verification
 

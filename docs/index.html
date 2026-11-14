@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sapling Print Twin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: a workshop control desk. Inputs on the left, the machine in the
+   middle with its print timeline underneath, the verdict on the right. */
+:root {
+  --bg: #e9ece7;
+  --panel: #f9faf7;
+  --panel-2: #f0f2ed;
+  --ink: #1b231f;
+  --muted: #5d6962;
+  --line: #d3d9d2;
+  --accent: #2c7a4d;
+  --accent-ink: #ffffff;
+  --accent-soft: #dcebe1;
+  --fail: #c5412d;
+  --fail-soft: #f6dfd9;
+  --warn: #a8690f;
+  --warn-soft: #f5e8cf;
+  --scene: #e3e7e1;
+  --shadow: 0 1px 2px rgba(27,35,31,.06), 0 6px 18px rgba(27,35,31,.07);
+  --f-display: "Archivo", "Arial Narrow", Arial, sans-serif;
+  --f-body: "IBM Plex Sans", "Segoe UI", system-ui, sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111512; --panel: #191e1b; --panel-2: #202622; --ink: #e6ece7; --muted: #98a59d;
+    --line: #2b342e; --accent: #62c389; --accent-ink: #0c1a11; --accent-soft: #1d3327;
+    --fail: #f0715a; --fail-soft: #3a1f19; --warn: #e2ab4e; --warn-soft: #372b14;
+    --scene: #171c19; --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 22px rgba(0,0,0,.35);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #111512; --panel: #191e1b; --panel-2: #202622; --ink: #e6ece7; --muted: #98a59d;
+  --line: #2b342e; --accent: #62c389; --accent-ink: #0c1a11; --accent-soft: #1d3327;
+  --fail: #f0715a; --fail-soft: #3a1f19; --warn: #e2ab4e; --warn-soft: #372b14;
+  --scene: #171c19; --shadow: 0 1px 2px rgba(0,0,0,.4), 0 8px 22px rgba(0,0,0,.35);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; margin: 0; }
+body {
+  background: var(--bg); color: var(--ink);
+  font: 14px/1.45 var(--f-body);
+  display: flex; flex-direction: column;
+}
+button, input, select { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+
+/* ------------------------------------------------------------ top bar */
+.bar {
+  display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  padding: 10px 16px; background: var(--panel); border-bottom: 1px solid var(--line);
+}
+.brand { display: flex; align-items: center; gap: 10px; margin-right: auto; }
+.brand svg { display: block; }
+.brand b { font: 700 19px/1 var(--f-display); letter-spacing: -.01em; }
+.brand span { color: var(--muted); font-size: 13px; }
+.bar label { color: var(--muted); font-size: 12px; }
+.bar select {
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px;
+  padding: 6px 8px; max-width: min(100%, 330px);
+}
+.bar a { color: var(--accent); text-decoration: none; font-weight: 500; white-space: nowrap; }
+.bar a:hover { text-decoration: underline; }
+.preset { display: flex; align-items: center; gap: 8px; min-width: 0; }
+
+/* ------------------------------------------------------------ desk */
+.desk {
+  flex: 1; min-height: 0; display: grid; gap: 12px; padding: 12px 16px 16px;
+  grid-template-columns: 292px minmax(0, 1fr) 312px;
+}
+.panel {
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  min-height: 0; overflow: auto;
+}
+.panel h2 {
+  font: 600 12px/1 var(--f-display); letter-spacing: .08em; text-transform: uppercase;
+  color: var(--muted); margin: 0; padding: 14px 14px 10px;
+}
+.group { padding: 0 14px 12px; display: flex; flex-direction: column; gap: 10px; }
+.group + h2 { border-top: 1px solid var(--line); }
+
+.seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; gap: 0;
+  border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+.seg button { border: 0; background: var(--panel-2); padding: 7px 4px; cursor: pointer; font-size: 13px; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 600; }
+
+.field { display: grid; grid-template-columns: 1fr 92px; gap: 4px 8px; align-items: center; }
+.field label { grid-column: 1 / -1; display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.field label small { color: var(--muted); font-family: var(--f-mono); font-size: 11.5px; }
+.field input[type="range"] { width: 100%; accent-color: var(--accent); margin: 0; }
+.field input[type="number"], .field select {
+  width: 100%; background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px;
+  padding: 4px 6px; text-align: right; font-family: var(--f-mono); font-size: 12.5px;
+}
+.field select { grid-column: 1 / -1; text-align: left; font-family: var(--f-body); padding: 6px; }
+.hint { color: var(--muted); font-size: 12px; margin: 0; }
+
+/* ------------------------------------------------------------ stage */
+.stage { display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 0; }
+.view {
+  position: relative; flex: 1; min-height: 300px; border-radius: 10px; overflow: hidden;
+  border: 1px solid var(--line); background: var(--scene);
+}
+.view canvas { display: block; width: 100%; height: 100%; touch-action: none; cursor: grab; }
+.view canvas:active { cursor: grabbing; }
+.live {
+  position: absolute; left: 10px; top: 10px; width: min(300px, calc(100% - 20px));
+  background: color-mix(in srgb, var(--panel) 92%, transparent); backdrop-filter: blur(6px);
+  border: 1px solid var(--line); border-radius: 9px; box-shadow: var(--shadow); padding: 10px 12px;
+}
+.live .state { display: flex; align-items: center; gap: 8px; font: 600 14px/1.2 var(--f-display); margin-bottom: 8px; }
+.dot { width: 9px; height: 9px; border-radius: 50%; background: var(--accent); flex: none; }
+.live[data-state="fail"] .dot { background: var(--fail); }
+.live[data-state="done"] .dot { background: var(--muted); }
+.tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.tile { background: var(--panel-2); border-radius: 6px; padding: 6px 7px; }
+.tile i { display: block; font-style: normal; font-size: 11px; color: var(--muted); }
+.tile b { font: 500 16px/1.2 var(--f-mono); font-variant-numeric: tabular-nums; }
+.tile b small { font-size: 11px; color: var(--muted); font-weight: 400; }
+.meter { margin-top: 8px; }
+.meter div { height: 6px; border-radius: 3px; background: var(--panel-2); overflow: hidden; }
+.meter div span { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 3px; }
+.meter[data-level="warn"] div span { background: var(--warn); }
+.meter[data-level="fail"] div span { background: var(--fail); }
+.meter p { margin: 4px 0 0; font-size: 12px; color: var(--muted); display: flex; justify-content: space-between; }
+
+.views { position: absolute; right: 10px; top: 10px; display: flex; gap: 0;
+  border: 1px solid var(--line); border-radius: 7px; overflow: hidden; box-shadow: var(--shadow); }
+.views button { border: 0; background: color-mix(in srgb, var(--panel) 92%, transparent); padding: 6px 10px; cursor: pointer; font-size: 12.5px; }
+.views button + button { border-left: 1px solid var(--line); }
+.views button[aria-pressed="true"] { background: var(--ink); color: var(--panel); }
+.note { position: absolute; right: 10px; bottom: 10px; max-width: calc(100% - 20px); text-align: right;
+  font-size: 11.5px; color: var(--muted); pointer-events: none; padding: 4px 8px; border-radius: 6px;
+  background: color-mix(in srgb, var(--panel) 85%, transparent); }
+.nogl { position: absolute; inset: 0; display: none; align-items: center; justify-content: center; padding: 24px; text-align: center; color: var(--muted); }
+
+/* ------------------------------------------------------------ timeline */
+.time { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px;
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px 12px; align-items: center; }
+.btn { width: 34px; height: 34px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel-2);
+  display: grid; place-items: center; cursor: pointer; padding: 0; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.btn svg { width: 14px; height: 14px; fill: currentColor; }
+.ctl { display: flex; gap: 6px; }
+.track { position: relative; height: 34px; cursor: pointer; touch-action: none; }
+.rail { position: absolute; left: 0; right: 0; top: 4px; height: 14px; border-radius: 4px; overflow: hidden;
+  background: repeating-linear-gradient(90deg, var(--panel-2) 0 calc(100% / var(--n)), var(--line) 0 calc(200% / var(--n))); }
+.rail .zone { position: absolute; top: 0; bottom: 0; right: 0; background: var(--fail-soft);
+  border-left: 2px solid var(--fail); }
+.rail .fill { position: absolute; top: 0; bottom: 0; left: 0; width: 0; background: var(--accent); opacity: .55; }
+.rail .fill.failed { background: var(--fail); opacity: .6; }
+.head { position: absolute; top: 0; width: 2px; height: 22px; background: var(--ink); transform: translateX(-1px); }
+.ticks { position: absolute; left: 0; right: 0; top: 21px; height: 12px; font: 10.5px/1 var(--f-mono); color: var(--muted); }
+.ticks span { position: absolute; transform: translateX(-50%); }
+.ticks span.f { color: var(--fail); font-weight: 500; }
+.speed { display: flex; align-items: center; gap: 8px; }
+.speed .seg button { padding: 5px 8px; font: 12px var(--f-mono); }
+.clock { font: 12.5px var(--f-mono); color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+/* ------------------------------------------------------------ report */
+.verdict { margin: 0 14px 12px; padding: 12px; border-radius: 8px; background: var(--accent-soft); border-left: 4px solid var(--accent); }
+.verdict[data-mode="buckling"], .verdict[data-mode="plastic"] { background: var(--fail-soft); border-left-color: var(--fail); }
+.verdict .pill { display: inline-block; font: 600 11px/1 var(--f-display); letter-spacing: .06em; text-transform: uppercase;
+  padding: 4px 7px; border-radius: 99px; background: var(--accent); color: var(--accent-ink); }
+.verdict[data-mode="buckling"] .pill, .verdict[data-mode="plastic"] .pill { background: var(--fail); color: #fff; }
+.verdict h3 { font: 700 26px/1.1 var(--f-display); margin: 8px 0 2px; letter-spacing: -.01em; text-wrap: balance; }
+.verdict p { margin: 0; color: var(--muted); font-size: 13px; }
+.bars { display: flex; flex-direction: column; gap: 10px; }
+.barrow > div:first-child { display: flex; justify-content: space-between; gap: 8px; font-size: 13px; }
+.barrow .lane { height: 10px; border-radius: 3px; background: var(--panel-2); margin-top: 4px; overflow: hidden; }
+.barrow .lane span { display: block; height: 100%; background: var(--muted); border-radius: 3px; opacity: .55; }
+.barrow.gov .lane span { background: var(--fail); opacity: 1; }
+.barrow.gov > div:first-child { font-weight: 600; }
+dl.kv { margin: 0; display: grid; grid-template-columns: 1fr auto; gap: 5px 10px; font-size: 13px; }
+dl.kv dt { color: var(--muted); }
+dl.kv dd { margin: 0; text-align: right; font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.shape { display: grid; grid-template-columns: 96px 1fr; gap: 10px; align-items: center; }
+.shape svg { width: 96px; height: 96px; background: var(--panel-2); border-radius: 6px; }
+.callout { border-radius: 7px; padding: 9px 10px; font-size: 12.5px; background: var(--warn-soft); border-left: 3px solid var(--warn); }
+.callout.ref { background: var(--panel-2); border-left-color: var(--line); color: var(--muted); }
+.refs { font-size: 12px; color: var(--muted); margin: 0; padding-left: 16px; }
+.refs a { color: var(--accent); }
+
+@media (max-width: 1180px) {
+  body { height: auto; min-height: 100%; }
+  .desk { grid-template-columns: 280px minmax(0, 1fr); }
+  .report { grid-column: 1 / -1; }
+  .view { min-height: 460px; }
+}
+@media (max-width: 760px) {
+  .desk { grid-template-columns: minmax(0, 1fr); padding: 10px 16px 16px; }
+  .stage { order: -1; }
+  .view { min-height: 380px; }
+  .time { grid-template-columns: auto minmax(0, 1fr); }
+  .speed { grid-column: 1 / -1; justify-content: space-between; }
+  .brand span { display: none; }
+  .live { right: 10px; width: auto; padding: 8px 10px; }
+  .live .tiles { display: none; }
+  .live .state { margin-bottom: 0; }
+  .views { top: auto; bottom: 10px; left: 10px; right: auto; }
+  .note { display: none; }
+}
+@media (prefers-reduced-motion: reduce) { * { scroll-behavior: auto; } }
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <div class="brand">
+    <svg width="26" height="26" viewBox="0 0 26 26" aria-hidden="true">
+      <rect x="3" y="19" width="20" height="4" rx="2" fill="var(--muted)"/>
+      <rect x="3" y="13.5" width="20" height="4" rx="2" fill="var(--muted)"/>
+      <rect x="4.5" y="8" width="20" height="4" rx="2" fill="var(--fail)"/>
+      <rect x="6.5" y="2.5" width="18" height="4" rx="2" fill="var(--fail)"/>
+    </svg>
+    <b>Sapling</b>
+    <span>Print twin for 3D concrete printing</span>
+  </div>
+  <div class="preset">
+    <label for="preset">Example</label>
+    <select id="preset"></select>
+  </div>
+  <a href="https://github.com/iamilio/sapling-3dcp">Code on GitHub</a>
+</header>
+
+<main class="desk">
+
+  <section class="panel inputs" aria-label="Inputs">
+    <h2>Layout</h2>
+    <div class="group">
+      <div class="seg" id="layout" role="group" aria-label="Wall layout">
+        <button type="button" data-v="free" aria-pressed="false">Free wall</button>
+        <button type="button" data-v="square" aria-pressed="true">Square</button>
+        <button type="button" data-v="rect" aria-pressed="false">Rectangle</button>
+      </div>
+      <p class="hint" id="layoutHint"></p>
+      <div id="fieldsLayout" class="group" style="padding:0"></div>
+    </div>
+    <h2>Print</h2>
+    <div class="group" id="fieldsPrint"></div>
+    <h2>Fresh concrete</h2>
+    <div class="group" id="fieldsMat"></div>
+  </section>
+
+  <section class="stage" aria-label="Printer">
+    <div class="view" id="view">
+      <canvas id="gl" aria-label="3D view of the printer and the printed wall"></canvas>
+      <div class="nogl" id="nogl">This browser could not start the 3D view. The inputs and the report still work.</div>
+      <div class="live" id="live" data-state="print">
+        <div class="state"><span class="dot"></span><span id="liveState">Printing</span></div>
+        <div class="tiles">
+          <div class="tile"><i>Layer</i><b id="liveLayer">0</b></div>
+          <div class="tile"><i>Height</i><b id="liveH">0<small> mm</small></b></div>
+          <div class="tile"><i>Print time</i><b id="liveT">0:00</b></div>
+        </div>
+        <div class="meter" id="meter">
+          <div><span id="meterFill"></span></div>
+          <p><span>Share of critical height</span><span class="num" id="meterPct">0%</span></p>
+        </div>
+      </div>
+      <div class="views" id="views" role="group" aria-label="Camera">
+        <button type="button" data-v="iso" aria-pressed="true">Iso</button>
+        <button type="button" data-v="front" aria-pressed="false">Front</button>
+        <button type="button" data-v="side" aria-pressed="false">Side</button>
+        <button type="button" data-v="top" aria-pressed="false">Top</button>
+      </div>
+      <div class="note">Drag to turn, scroll to zoom, right-drag to move. The shape after failure is an illustration, not a computed displacement.</div>
+    </div>
+
+    <div class="time">
+      <div class="ctl">
+        <button type="button" class="btn primary" id="play" aria-label="Play">
+          <svg viewBox="0 0 14 14" id="playIcon"><path d="M3 1.5v11l9-5.5z"/></svg>
+        </button>
+        <button type="button" class="btn" id="restart" aria-label="Back to the first layer">
+          <svg viewBox="0 0 14 14"><path d="M2 1.5h2v11H2zM12.5 1.5v11L5 7z"/></svg>
+        </button>
+      </div>
+      <div class="track" id="track" role="slider" tabindex="0" aria-label="Print progress" aria-valuemin="0" aria-valuemax="1" aria-valuenow="0">
+        <div class="rail" id="rail"><div class="zone" id="zone"></div><div class="fill" id="fill"></div></div>
+        <div class="head" id="head"></div>
+        <div class="ticks" id="ticks"></div>
+      </div>
+      <div class="speed">
+        <span class="clock" id="clock"></span>
+        <div class="seg" id="speed" role="group" aria-label="Playback speed">
+          <button type="button" data-v="0.5" aria-pressed="false">0.5×</button>
+          <button type="button" data-v="1" aria-pressed="true">1×</button>
+          <button type="button" data-v="3" aria-pressed="false">3×</button>
+          <button type="button" data-v="8" aria-pressed="false">8×</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="panel report" aria-label="Result">
+    <h2>Result</h2>
+    <div class="verdict" id="verdict"></div>
+    <h2>Which failure comes first</h2>
+    <div class="group"><div class="bars" id="bars"></div></div>
+    <div id="shapeWrap">
+      <h2>Buckling mode</h2>
+      <div class="group"><div class="shape" id="shape"></div></div>
+    </div>
+    <h2>Model values</h2>
+    <div class="group"><dl class="kv" id="kv"></dl></div>
+    <div class="group" id="notes"></div>
+    <h2>Model</h2>
+    <div class="group">
+      <ul class="refs">
+        <li>A.S.J. Suiker (2018), <a href="https://doi.org/10.1016/j.ijmecsci.2018.01.010">Int. J. Mech. Sci. 137</a></li>
+        <li>R.J.M. Wolfs, A.S.J. Suiker (2019), <a href="https://doi.org/10.1007/s00170-019-03844-6">Int. J. Adv. Manuf. Technol. 104</a></li>
+        <li>A.S.J. Suiker, R.J.M. Wolfs, S.M. Lucas, T.A.M. Salet (2020), <a href="https://doi.org/10.1016/j.cemconres.2020.106016">Cem. Concr. Res. 135</a></li>
+      </ul>
+      <p class="hint">Straight vertical walls of uniform thickness. Imperfections are not modelled. The shape drawn after failure is an illustration, not a computed displacement. This page runs the same solver as the Grasshopper component.</p>
+    </div>
+  </section>
+
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="sapling-solver.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
