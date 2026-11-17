@@ -30,7 +30,7 @@
     { name: "Free wall 10.4 m, quadratic curing (Wolfs & Suiker 2019)", layout: "free", h: 60, tl: 9.5, Tl: 99.8,
       rho: 2100, E0: 39.5, xiE: 0.0432, sig0: 1000000, xiS: 0, curing: "quadratic", paper: null, observed: [46],
       note: "The printed wall buckled at 46 layers. The coefficient 2.5 was fitted by the authors to this wall, so the match is a fit and not a prediction. One metre of the wall is drawn." },
-    { name: "Accelerated mortar, square 500 mm (material of Deetman & Suiker 2025)", layout: "square", b: 500, h: 55, tl: 9.5, Tl: 19.2,
+    { name: "Accelerated mortar, square 500 mm (material of Deetman & Suiker 2026)", layout: "square", b: 500, h: 55, tl: 9.5, Tl: 19.2,
       rho: 2100, E0: 83, xiE: 0.024, sig0: 5.505, xiS: 0.02, curing: "power", mE: 3, nS: 3, paper: null, observed: [],
       note: "A prediction, not a reproduction: no wall was printed with this mortar in the paper. Stiffness and cohesion follow power laws with exponent 3, measured by indentation tests; the yield strength is the cohesion of 1.72 kPa at a friction angle of 26°. The density of 2100 kg/m³ is assumed, and the wall and print settings are those of the 500 mm example. Compression tests on the same mortar gave slower curing (0.020 and 0.015 per minute), which gives 46 layers." },
     { name: "Wall 690 mm, no failure (Suiker et al. 2020)", layout: "square", b: 690, h: 55, tl: 9.5, Tl: 88,
