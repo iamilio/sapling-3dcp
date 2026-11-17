@@ -12,7 +12,7 @@ Sapling implements the parametric model developed at Eindhoven University of Tec
 
 - Predicts the critical height, the failure layer and the failure mode of a straight printed wall.
 - Supports four boundary conditions: free wall, simply supported, fully clamped, and rectangular layouts (two long walls restrained by two short walls).
-- Supports three stiffness curing laws: linear, exponentially decaying, and quadratic.
+- Supports four stiffness curing laws: linear, exponentially decaying, quadratic, and power-law (Suiker 2022).
 - Reports "no failure predicted" when the wall can be printed to any height under the model.
 - Warns when the model is used where the papers show it is less reliable.
 - Runs in pure Python, with no numpy or scipy, in Rhino 7 and Rhino 8.
@@ -46,7 +46,7 @@ Sapling implements the parametric model developed at Eindhoven University of Tec
 | `mE` | float | | Exponent of power-law stiffness curing, `E = E0 (1 + xiE t)^mE` (empty = 1) |
 | `nS` | float | | Exponent of power-law strength curing, `sig = sig0 (1 + xiS t)^nS` (empty = 1) |
 | `Ky` | float | | Coefficient of lateral stress (empty = `nu`) |
-| `RectScaling` | str | | `paper` (default) or `consistent`; see the notes in `sapling.py` |
+| `RectScaling` | str | | `auto` (default), `paper` or `consistent`. `auto` uses `paper` (the form of Eq. 67) for linear curing and `consistent` for non-linear curing, where `paper` gives spurious jumps in the critical height |
 | `Htarget` | float | mm | Intended height, used for the preview when no failure is predicted |
 
 Use sliders with at least four decimals for the curing rates, or type the values in a panel. A curing rate rounded in the third decimal can move the result by a layer.
@@ -56,7 +56,7 @@ Use sliders with at least four decimals for the curing rates, or type the values
 | Name | Meaning |
 | --- | --- |
 | `Height` | Critical height in mm (empty when no failure is predicted) |
-| `Layers` | Number of layers at failure |
+| `Layers` | Number of layers at failure: ⌈`Height`/`tl`⌉ for buckling, ⌈`Height`/`tl`⌉ + 1 for plastic collapse, because the first layer sticks to the bed and does not take part in the collapse (Suiker et al. 2020, Sec. 2.2) |
 | `Mode` | `elastic buckling`, `plastic collapse` or `no failure predicted` |
 | `Report` | Text summary, including warnings |
 | `Preview` | The path extruded to the critical height |
@@ -98,7 +98,19 @@ python -m pytest tests
 
 - 26 dimensionless buckling lengths, including the cases compared with finite-element analysis in Wolfs & Suiker (2019).
 - 10 failure-layer cases, covering the printed walls of the 2018, 2019 and 2020 papers.
-- Power-law (accelerated) curing of Suiker (2022). The plastic collapse rule is Eq. (25) of that paper. For buckling the paper gives a graph and no table, so the check is against values read from the numerical curves of its Fig. 11: within about 1 to 4% for exponents up to 2. With exponent 1 the law reproduces linear curing exactly, and with exponent 2 it reproduces the quadratic law exactly.
+- Power-law (accelerated) curing of Suiker (2022). The plastic collapse rule is Eq. (25) of that paper. With exponent 1 the law reproduces linear curing exactly, and with exponent 2 it reproduces the quadratic law exactly.
+- An independent finite-element check (Hermite beam elements on the energy of the same plate-strip equations) agrees with the shooting solver to within 0.2% for free and simply supported walls, linear and power-law curing.
+
+**Comparison with the exact curve data of Suiker.** Prof. Suiker kindly sent the numerical data behind Fig. 11 of the 2022 paper and Fig. 19 of the 2018 paper. An earlier version of this README compared against values read from the graph and reported 1 to 4% agreement; the exact data show a larger spread, so the full picture is given here. Differences are in the buckling length at the end of each curve; Sapling is lower in every case.
+
+| Case | Largest difference |
+|---|---|
+| Fig. 11 (2022), free wall, exponent m = 1 / 1.2 / 1.5 | 0.5% / 1.1% / 2.5% |
+| Fig. 11, m = 2 / 3 / 4 | 6.5% / 19% / 33% |
+| Fig. 19 (2018), simply supported, b̄ = 20 / 50 / free wall | 0.9% / 0.5% / 0.5% |
+| Fig. 19, b̄ = 3 to 10 | 4% to 23%, largest close to the vertical asymptotes |
+
+The difference grows with the wall length and with the exponent. At the start of the curves the agreement is close (0.1% or better for most b̄; b̄ = 3 is 4% lower already). The FE check agrees with Sapling at these points, so the two methods in this repository solve the same equations consistently; the cause of the remaining difference is still open and is being discussed with the author. The tests check m ≤ 1.5 against the exact data and do not hide the larger differences behind a wide tolerance.
 
 Sapling integrates the governing equation directly. It is therefore 1 to 3% below the closed-form free-wall design formula of the papers, which in a few cases shifts the predicted failure by one layer.
 

@@ -330,7 +330,8 @@
       v.innerHTML = '<span class="pill">' + (buck ? "Elastic buckling" : "Plastic collapse") + "</span>" +
         "<h3>Fails at layer " + r.n + "</h3>" +
         "<p>Critical height " + mm(r.H) + " mm, reached after " + clock(r.H / r.ldot) + " of printing. " +
-        (buck ? "The wall is too slender for its weight and bends sideways." : "The bottom layer yields under the weight above it.") + "</p>";
+        (buck ? "The wall is too slender for its weight and bends sideways." :
+          "The bottom layer yields under the weight above it. Layer " + r.n + " = ⌈l<sub>p</sub>/t<sub>l</sub>⌉ + 1 = ⌈" + fmt(r.lp * 1000 / tl, 2) + "⌉ + 1: the first layer sticks to the bed and does not take part in the collapse, so one layer is added (Suiker et al. 2020, Sec. 2.2).") + "</p>";
     }
     if (band) {
       var nm = function (n) { return n === null ? "no failure" : "layer " + n; }, same = band.lo === band.hi && band.lo === r.n;
@@ -348,9 +349,9 @@
         '<div class="lane"><span style="width:' + (fin(x) ? w : 0) + '%"></span></div></div>';
     }
     $("bars").innerHTML =
-      row("Elastic buckling", r.lcr, r.mode === "elastic buckling", "none below " + mm(r.limit) + " mm") +
-      row("Plastic collapse", r.lp, r.mode === "plastic collapse", "never: strength outgrows the load") +
-      '<p class="hint">The shorter of the two heights decides.</p>';
+      row("Elastic buckling l<sub>cr</sub>", r.lcr, r.mode === "elastic buckling", "none below " + mm(r.limit) + " mm") +
+      row("Plastic collapse l<sub>p</sub>", r.lp, r.mode === "plastic collapse", "never: strength outgrows the load") +
+      '<p class="hint">The shorter of the two heights decides. For plastic collapse the failure layer adds one constrained bottom layer to l<sub>p</sub>/t<sub>l</sub>.</p>';
 
     $("shapeWrap").style.display = r.shape ? "" : "none";
     if (r.shape) {
@@ -362,11 +363,11 @@
         '<p class="hint">Sideways deflection over the height at the moment of buckling, from the bed (bottom) to the top layer. Only the shape is known; the size is not.</p>';
     }
     $("kv").innerHTML = [
-      ["Wall growth", fmt(r.ldot * 1000, 3) + " mm/s"],
-      ["Length scale L₀", fmt(r.L0 * 1000, 1) + " mm"],
-      ["Curing rate Ē", fmt(r.Ebar, 3)],
-      ["Strength ratio α", fmt(r.abar, 3)],
-      ["Wall width b / L₀", r.bbar === null ? "free" : fmt(r.bbar, 2)]
+      ["Wall growth rate l̇ = t<sub>l</sub>/T<sub>l</sub>", fmt(r.ldot * 1000, 3) + " mm/s"],
+      ["Length scale L<sub>0</sub> = (D<sub>0</sub>/ρgh)<sup>1/3</sup>", fmt(r.L0 * 1000, 1) + " mm"],
+      ["Stiffness curing ξ̄<sub>E</sub> = L<sub>0</sub>ξ<sub>E</sub>/l̇", fmt(r.Ebar, 3)],
+      ["Strength curing ᾱ = σ<sub>0</sub>ξ<sub>σ</sub>/(ρg l̇)", fmt(r.abar, 3)],
+      ["Wall width b̄ = b/L<sub>0</sub>", r.bbar === null ? "free" : fmt(r.bbar, 2)]
     ].map(function (a) { return "<dt>" + a[0] + "</dt><dd>" + a[1] + "</dd>"; }).join("");
 
     var notes = r.warnings.map(function (w) { return '<div class="callout">' + esc(w) + "</div>"; });

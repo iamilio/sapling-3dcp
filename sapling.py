@@ -1,5 +1,5 @@
 """
-Sapling 0.3.0 - buildability check for 3D concrete printing
+Sapling 0.3.1 - buildability check for 3D concrete printing
 GhPython component (Rhino 7 IronPython / Rhino 8 CPython) and plain module.
 
 Implements the parametric model of Suiker (2018) for elastic buckling and
@@ -56,7 +56,7 @@ OUTPUTS:
 from __future__ import division
 import math
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
 
 G = 9.81
 INF = float("inf")
@@ -313,7 +313,7 @@ def plastic_length_factor(abar, n=1.0):
 
 
 def assess(h, tl, Tl, rho, E0, nu, xiE, sig0, xiS, b=None, edge="free",
-           gammaE=None, d=None, Ky=None, scaling="paper", Lmax=60.0,
+           gammaE=None, d=None, Ky=None, scaling="auto", Lmax=60.0,
            betaE=None, mE=None, nS=None):
     """SI units in, dict out.
     mE: exponent of power-law stiffness curing, E = E0 (1 + xiE t)^mE.
@@ -322,6 +322,11 @@ def assess(h, tl, Tl, rho, E0, nu, xiE, sig0, xiS, b=None, edge="free",
         gammaE = ("quad", float(betaE))
     if mE and abs(float(mE) - 1.0) > 1e-12:
         gammaE = ("pow", float(mE))
+    # Rect lay-out: the 'paper' rotational-stiffness scaling is the
+    # linear-curing form of Eq. (67). For non-linear curing it gives spurious
+    # jumps in lcr vs h, so 'auto' uses the dimensionally consistent form there.
+    if scaling in (None, "", "auto"):
+        scaling = "paper" if gammaE is None else "consistent"
     ldot = tl / Tl
     D0 = E0 * h ** 3 / (12 * (1 - nu ** 2))
     L0 = (D0 / (rho * G * h)) ** (1.0 / 3)
@@ -353,12 +358,11 @@ def assess(h, tl, Tl, rho, E0, nu, xiE, sig0, xiS, b=None, edge="free",
         warn.append("failure after %.0f min of printing: linear curing is "
                     "calibrated for short sessions and underestimated long "
                     "walls in Wolfs & Suiker 2019" % (H / ldot / 60.0))
-    if edge == "rect" and isinstance(gammaE, float):
-        warn.append("rectangular lay-out with exponential curing is outside "
-                    "the published formulas (Eq. 67 is for linear curing)")
-    if edge == "rect" and isinstance(gammaE, tuple) and gammaE[0] == "pow":
-        warn.append("rectangular lay-out with power-law curing is outside "
-                    "the published formulas (Eq. 67 is for linear curing)")
+    if edge == "rect" and gammaE is not None:
+        warn.append("rectangular lay-out with non-linear curing is outside "
+                    "the published formulas (Eq. 67 is for linear curing); "
+                    "the corner stiffness uses the dimensionally consistent "
+                    "scaling (scaling='%s')" % scaling)
     return dict(ldot=ldot, D0=D0, L0=L0, Ebar=Ebar, bbar=bbar, abar=abar,
                 lcr=lcr, lp=lp, H=H, mode=mode, n=n, limit=limit * L0,
                 warnings=warn, shape=shape)
@@ -384,7 +388,7 @@ def _gh_main():
               b=None if bb is None else bb / 1000.0, edge=edge,
               gammaE=val("gammaE"),
               d=None if dd is None else dd / 1000.0, Ky=val("Ky"),
-              scaling=(val("RectScaling", "paper") or "paper").strip().lower(),
+              scaling=(val("RectScaling", "auto") or "auto").strip().lower(),
               betaE=val("betaE"), mE=val("mE"), nS=val("nS"))
     # Results are kept per set of inputs, so returning to values that were
     # already solved (e.g. dragging a slider back) is immediate.
@@ -406,7 +410,7 @@ def _gh_main():
 
     lines = ["Layer time      : %.1f s" % Tl_s,
              "Wall growth     : %.3f mm/s" % (r["ldot"] * 1000),
-             "Ebar / alpha    : %.3f / %.3f" % (r["Ebar"], r["abar"]),
+             "xiE_bar / a_bar : %.3f / %.3f" % (r["Ebar"], r["abar"]),
              "Buckling length : " + mm(r["lcr"]),
              "Plastic length  : " + ("none (strength outgrows self-weight)"
                                      if r["lp"] == INF else mm(r["lp"]))]
@@ -415,6 +419,9 @@ def _gh_main():
     else:
         lines.append("-> %s at %.0f mm (%d layers)"
                      % (r["mode"], r["H"] * 1000, r["n"]))
+        if r["mode"] == "plastic collapse":
+            lines.append("   layers = ceil(lp/tl) + 1: the constrained bottom "
+                         "layer (Suiker et al. 2020, Sec. 2.2)")
     for wmsg in r["warnings"]:
         lines.append("! " + wmsg)
     Hmm = None if r["H"] is None else r["H"] * 1000

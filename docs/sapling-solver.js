@@ -214,7 +214,10 @@
     if (p.betaE) gammaE = { quad: +p.betaE };
     if (p.mE && Math.abs(+p.mE - 1) > 1e-12) gammaE = { pow: +p.mE };
     var Lmax = p.Lmax === undefined ? 60.0 : p.Lmax;
-    var edge = p.edge || "free", scaling = p.scaling || "paper";
+    var edge = p.edge || "free", scaling = p.scaling || "auto";
+    // Rect: 'paper' scaling is the linear-curing form of Eq. (67); for
+    // non-linear curing it gives spurious jumps, so 'auto' switches.
+    if (scaling === "auto") scaling = (gammaE === null) ? "paper" : "consistent";
     var ldot = p.tl / p.Tl;
     var D0 = p.E0 * Math.pow(p.h, 3) / (12 * (1 - p.nu * p.nu));
     var L0 = Math.pow(D0 / (p.rho * G * p.h), 1 / 3);
@@ -237,14 +240,14 @@
       warn.push("Clamped wall at a high curing rate: the model overestimates finite-element results by up to 15% (Wolfs & Suiker 2019, Sec. 3.2). 'Simply supported' is the safe bound.");
     if (H !== null && gammaE === null && H / ldot > 1200.0)
       warn.push("Failure after " + (H / ldot / 60).toFixed(0) + " min of printing: linear curing is calibrated for short sessions and underestimated long walls in Wolfs & Suiker 2019.");
-    if (edge === "rect" && (typeof gammaE === "number" || (gammaE && gammaE.pow !== undefined)))
-      warn.push("Rectangular layout with " + (typeof gammaE === "number" ? "exponential" : "power-law") + " curing is outside the published formulas (Eq. 67 is for linear curing).");
+    if (edge === "rect" && gammaE !== null)
+      warn.push("Rectangular layout with non-linear curing is outside the published formulas (Eq. 67 is for linear curing). The corner stiffness uses the dimensionally consistent scaling.");
     return { ldot: ldot, D0: D0, L0: L0, Ebar: Ebar, bbar: bbar, abar: abar, lcr: lcr, lp: lp,
              H: H, mode: mode, n: n, limit: limit * L0, warnings: warn, shape: shape };
   }
 
   var api = { G: G, criticalLength: criticalLength, modeShape: modeShape, assess: assess,
-              plasticLengthFactor: plasticLengthFactor, nyOfKr: nyOfKr, cyOfKr: cyOfKr, version: "0.2.0" };
+              plasticLengthFactor: plasticLengthFactor, nyOfKr: nyOfKr, cyOfKr: cyOfKr, version: "0.3.1" };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.SaplingSolver = api;
 })(typeof self !== "undefined" ? self : this);

@@ -12,6 +12,8 @@ Tolerances reflect how the published number was obtained: exact results are
 held to 0.1 %, closed-form fits and graph readings to the stated tolerance.
 """
 import os
+
+import pytest
 import sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
@@ -161,10 +163,69 @@ if __name__ == "__main__":
 # gives no table, so the values below were read from the solid (numerical)
 # curves of its Fig. 11; the reading is good to a few per cent.
 def test_power_law_fig11():
-    close(sp.critical_length(10.0, Lmax=12), 7.77, 0.03)                       # m = 1
-    close(sp.critical_length(7.50, gamma=("pow", 1.2), Lmax=12), 10.0, 0.03)
-    close(sp.critical_length(3.26, gamma=("pow", 1.5), Lmax=12), 10.0, 0.05)
-    close(sp.critical_length(1.42, gamma=("pow", 2.0), Lmax=12), 10.0, 0.06)
+    """Exact curve data of Suiker (2022) Fig. 11, sent by A.S.J. Suiker
+    (Nov 2026): last point of each curve, (xi_bar, l_bar).
+    Agreement is within 0.6% (m = 1), 1.2% (m = 1.2) and 2.5% (m = 1.5).
+    For m = 2, 3, 4 Sapling is 6.5%, 19% and 33% lower at the end of the
+    curve; the independent FE check below agrees with Sapling there, so these
+    differences are listed in the README and not hidden by a tolerance."""
+    close(sp.critical_length(10.0003, Lmax=12), 7.72078, 0.01)               # m = 1
+    close(sp.critical_length(7.59413, gamma=("pow", 1.2), Lmax=12), 10.0749, 0.015)
+    close(sp.critical_length(3.30989, gamma=("pow", 1.5), Lmax=12), 10.0638, 0.03)
+
+
+def _fe_lcr(E, m, bbar=None, nu=0.3, Ky=0.3, ne=80):
+    """Independent check: Hermite cubic beam FE on the plate-strip energy
+    U = 1/2 int g [w''^2 - 2 nu c w w'' + c b2 w^2 + 2(1-nu) c w'^2] ds,
+    W = 1/2 int (L-s) [w'^2 + c Ky w^2] ds (simply supported edges, n = 1),
+    g = (1 + E (L-s))^m, clamped at the bed; buckling where the lowest
+    eigenvalue of K v = mu G v equals 1."""
+    import numpy as np
+    la = pytest.importorskip("scipy.linalg")
+    so = pytest.importorskip("scipy.optimize")
+    gp, gw = np.polynomial.legendre.leggauss(6)
+    b2 = (np.pi / bbar) ** 2 if bbar else 0.0
+    c = b2
+
+    def mu(L):
+        nd = 2 * (ne + 1)
+        K = np.zeros((nd, nd))
+        G = np.zeros((nd, nd))
+        h = L / ne
+        for e in range(ne):
+            ix = slice(2 * e, 2 * e + 4)
+            for xg, wg in zip(gp, gw):
+                x = (xg + 1) / 2
+                s = (e + x) * h
+                wt = wg * h / 2
+                N0 = np.array([1 - 3 * x * x + 2 * x ** 3, h * (x - 2 * x * x + x ** 3),
+                               3 * x * x - 2 * x ** 3, h * (-x * x + x ** 3)])
+                N1 = np.array([-6 * x + 6 * x * x, h * (1 - 4 * x + 3 * x * x),
+                               6 * x - 6 * x * x, h * (-2 * x + 3 * x * x)]) / h
+                N2 = np.array([-6 + 12 * x, h * (-4 + 6 * x), 6 - 12 * x,
+                               h * (-2 + 6 * x)]) / h ** 2
+                g = (1 + E * (L - s)) ** m
+                K[ix, ix] += wt * g * (np.outer(N2, N2) - nu * c * (np.outer(N0, N2) + np.outer(N2, N0))
+                                       + c * b2 * np.outer(N0, N0) + 2 * (1 - nu) * c * np.outer(N1, N1))
+                G[ix, ix] += wt * (L - s) * (np.outer(N1, N1) + c * Ky * np.outer(N0, N0))
+        return la.eigh(K[2:, 2:], G[2:, 2:], eigvals_only=True, subset_by_index=[0, 0])[0]
+
+    a, b = 1.2, 1.3
+    while mu(b) > 1.0:
+        a, b = b, b * 1.1
+    return so.brentq(lambda L: mu(L) - 1.0, a, b, xtol=1e-8)
+
+
+@pytest.mark.parametrize("E,m,bbar,edge", [
+    (1.42611, 2.0, None, "free"), (0.55259, 3.0, None, "free"),
+    (0.323261, 4.0, None, "free"), (0.0264, 1.0, 3.0, "simply"),
+    (4.1281, 1.0, 10.0, "simply")])
+def test_fe_cross_check(E, m, bbar, edge):
+    """The shooting solver and an independent FE discretisation of the same
+    equations agree, also where Fig. 11/19 data differ from Sapling."""
+    gamma = None if m == 1.0 else ("pow", m)
+    lsap = sp.critical_length(E, bbar=bbar, edge=edge, gamma=gamma, Lmax=20)
+    close(lsap, _fe_lcr(E, m, bbar), 0.002)
 
 
 def test_power_law_limits():
@@ -179,3 +240,16 @@ def test_power_law_limits():
     x = sp.plastic_length_factor(0.05, 3.0)
     assert abs((1 + 0.05 * x) ** 3 - x) < 1e-9
     assert sp.plastic_length_factor(0.2, 3.0) == sp.INF     # strength stays ahead
+
+
+def test_rect_power_law_monotone():
+    """Rect lay-out + power-law curing: lcr must not jump down as h grows
+    (spikes reported by A.S.J. Suiker, Nov 2026, came from 'paper' scaling)."""
+    base = dict(tl=.0092, Tl=21, rho=2020, E0=78100, nu=.3, xiE=.0154 / 60,
+                sig0=1e15, xiS=0, b=.625, d=.25, edge="rect", Lmax=20)
+    for mE in (2.0, 3.0):
+        prev = 0.0
+        for hmm in range(50, 101, 5):
+            r = sp.assess(h=hmm / 1000.0, mE=mE, **base)
+            assert r["lcr"] >= prev * 0.999, (mE, hmm, r["lcr"], prev)
+            prev = r["lcr"]
