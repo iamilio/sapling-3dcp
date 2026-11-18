@@ -214,10 +214,8 @@
     if (p.betaE) gammaE = { quad: +p.betaE };
     if (p.mE && Math.abs(+p.mE - 1) > 1e-12) gammaE = { pow: +p.mE };
     var Lmax = p.Lmax === undefined ? 60.0 : p.Lmax;
-    var edge = p.edge || "free", scaling = p.scaling || "auto";
-    // Rect: 'paper' scaling is the linear-curing form of Eq. (67); for
-    // non-linear curing it gives spurious jumps, so 'auto' switches.
-    if (scaling === "auto") scaling = (gammaE === null) ? "paper" : "consistent";
+    var edge = p.edge || "free", scaling = p.scaling || "paper";
+    if (scaling === "auto") scaling = "paper";
     var ldot = p.tl / p.Tl;
     var D0 = p.E0 * Math.pow(p.h, 3) / (12 * (1 - p.nu * p.nu));
     var L0 = Math.pow(D0 / (p.rho * G * p.h), 1 / 3);
@@ -232,7 +230,7 @@
     var H, mode, n;
     if (lcr === Infinity && lp === Infinity) { H = null; mode = "no failure predicted"; n = null; }
     else if (lcr < lp) { H = lcr; mode = "elastic buckling"; n = Math.ceil(lcr / p.tl); }
-    else { H = lp; mode = "plastic collapse"; n = Math.ceil(lp / p.tl) + 1; }
+    else { H = lp; mode = "plastic collapse"; n = Math.ceil(lp / p.tl) + (p.bottomLayer === false ? 0 : 1); }
     var shape = null;
     if (mode === "elastic buckling") shape = modeShape(lcr / L0, Ebar, opt);
     var warn = [];
@@ -241,13 +239,15 @@
     if (H !== null && gammaE === null && H / ldot > 1200.0)
       warn.push("Failure after " + (H / ldot / 60).toFixed(0) + " min of printing: linear curing is calibrated for short sessions and underestimated long walls in Wolfs & Suiker 2019.");
     if (edge === "rect" && gammaE !== null)
-      warn.push("Rectangular layout with non-linear curing is outside the published formulas (Eq. 67 is for linear curing). The corner stiffness uses the dimensionally consistent scaling.");
+      warn.push("Rectangular layout with non-linear curing is outside the published formulas (Eq. 67 is for linear curing).");
+    if (edge === "rect")
+      warn.push("Rectangular layout: the critical height can jump with small changes of the inputs. There, two buckling roots of the equations merge and vanish, which shows as spikes in the chart against wall thickness. This is a property of the equations, not a rounding error; check the ±10% band.");
     return { ldot: ldot, D0: D0, L0: L0, Ebar: Ebar, bbar: bbar, abar: abar, lcr: lcr, lp: lp,
              H: H, mode: mode, n: n, limit: limit * L0, warnings: warn, shape: shape };
   }
 
   var api = { G: G, criticalLength: criticalLength, modeShape: modeShape, assess: assess,
-              plasticLengthFactor: plasticLengthFactor, nyOfKr: nyOfKr, cyOfKr: cyOfKr, version: "0.3.1" };
+              plasticLengthFactor: plasticLengthFactor, nyOfKr: nyOfKr, cyOfKr: cyOfKr, version: "0.3.2" };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.SaplingSolver = api;
 })(typeof self !== "undefined" ? self : this);

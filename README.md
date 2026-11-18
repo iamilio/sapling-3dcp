@@ -46,7 +46,8 @@ Sapling implements the parametric model developed at Eindhoven University of Tec
 | `mE` | float | | Exponent of power-law stiffness curing, `E = E0 (1 + xiE t)^mE` (empty = 1) |
 | `nS` | float | | Exponent of power-law strength curing, `sig = sig0 (1 + xiS t)^nS` (empty = 1) |
 | `Ky` | float | | Coefficient of lateral stress (empty = `nu`) |
-| `RectScaling` | str | | `auto` (default), `paper` or `consistent`. `auto` uses `paper` (the form of Eq. 67) for linear curing and `consistent` for non-linear curing, where `paper` gives spurious jumps in the critical height |
+| `RectScaling` | str | | `paper` (default, the form of Eqs. 67 and 68) or `consistent`; see the notes in `sapling.py` |
+| `BottomLayer` | bool | | Add one layer to plastic collapse for the constrained bottom layer (default true); an experimental observation of Suiker et al. (2020), not a model outcome |
 | `Htarget` | float | mm | Intended height, used for the preview when no failure is predicted |
 
 Use sliders with at least four decimals for the curing rates, or type the values in a panel. A curing rate rounded in the third decimal can move the result by a layer.
@@ -56,7 +57,7 @@ Use sliders with at least four decimals for the curing rates, or type the values
 | Name | Meaning |
 | --- | --- |
 | `Height` | Critical height in mm (empty when no failure is predicted) |
-| `Layers` | Number of layers at failure: ⌈`Height`/`tl`⌉ for buckling, ⌈`Height`/`tl`⌉ + 1 for plastic collapse, because the first layer sticks to the bed and does not take part in the collapse (Suiker et al. 2020, Sec. 2.2) |
+| `Layers` | Number of layers at failure: ⌈`Height`/`tl`⌉ for buckling, ⌈`Height`/`tl`⌉ + 1 for plastic collapse, because the first layer sticks to the bed and hardly deforms (Suiker et al. 2020, Sec. 2.2). This extra layer is an experimental observation and can be switched off with `BottomLayer` |
 | `Mode` | `elastic buckling`, `plastic collapse` or `no failure predicted` |
 | `Report` | Text summary, including warnings |
 | `Preview` | The path extruded to the critical height |
@@ -110,7 +111,7 @@ python -m pytest tests
 | Fig. 19 (2018), simply supported, b̄ = 20 / 50 / free wall | 0.9% / 0.5% / 0.5% |
 | Fig. 19, b̄ = 3 to 10 | 4% to 23%, largest close to the vertical asymptotes |
 
-The difference grows with the wall length and with the exponent. At the start of the curves the agreement is close (0.1% or better for most b̄; b̄ = 3 is 4% lower already). The FE check agrees with Sapling at these points, so the two methods in this repository solve the same equations consistently; the cause of the remaining difference is still open and is being discussed with the author. The tests check m ≤ 1.5 against the exact data and do not hide the larger differences behind a wide tolerance.
+The difference grows with the wall length and with the exponent. Prof. Suiker explained that the curves were computed with the polynomial solution of the 2018 paper, Eq. (96), with N = 6 terms. Rebuilding that six-term solution (clamped at the bed, natural conditions Eq. (55) at the top) reproduces his data to 0.1% for every case above, including m = 4 and b̄ = 3. With more terms it converges to the Sapling value: for m = 4, N = 6, 7, 8 and 12 give 10.24, 7.27, 6.95 and 6.88. Six terms are converged for linear curing and short walls (Fig. 12 of the 2018 paper), but not for long walls with steep curing, where the six-term solution is stiffer and gives a longer critical length. An independent finite-element solution agrees with Sapling to within 0.2%. The tests check all of this.
 
 Sapling integrates the governing equation directly. It is therefore 1 to 3% below the closed-form free-wall design formula of the papers, which in a few cases shifts the predicted failure by one layer.
 
@@ -122,6 +123,7 @@ These tests show that the implementation matches the published model. They are *
 - **Long print sessions.** With linear curing the model underestimated walls printed for more than about 20 minutes (24 layers predicted against 46 observed for a 10.4 m wall). Sapling warns in this range.
 - **Clamped walls.** At high curing rates the model exceeds finite-element results by up to 15%. Sapling warns; `simply` is the safe bound.
 - **Imperfections** are not modelled.
+- **Rectangular layouts, jumps.** The critical height can jump with small input changes. There, two roots of the buckling equations merge and vanish as the wall grows, because the stiffness of the supporting walls depends on the wall length. This is a property of the equations (it also occurs for linear curing, at larger thickness), not a rounding error, and Sapling warns about it. Treat the result near a jump with care.
 - **Plastic collapse** uses linear or power-law strength curing. The effect of vertical layer deformations (Suiker 2022, Sec. 3) is not included.
 - **Power-law curing** is checked for free walls. For exponents of 3 and higher the buckling length rises very steeply with the curing rate, so a small error in the measured rate moves the result a lot.
 - **Rectangular layouts** require equal wall thickness and linear or quadratic stiffness curing. Sapling warns for exponential and power-law curing.

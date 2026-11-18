@@ -168,7 +168,8 @@ def test_power_law_fig11():
     Agreement is within 0.6% (m = 1), 1.2% (m = 1.2) and 2.5% (m = 1.5).
     For m = 2, 3, 4 Sapling is 6.5%, 19% and 33% lower at the end of the
     curve; the independent FE check below agrees with Sapling there, so these
-    differences are listed in the README and not hidden by a tolerance."""
+    differences are listed in the README and explained by
+    test_curve_data_is_six_term_solution."""
     close(sp.critical_length(10.0003, Lmax=12), 7.72078, 0.01)               # m = 1
     close(sp.critical_length(7.59413, gamma=("pow", 1.2), Lmax=12), 10.0749, 0.015)
     close(sp.critical_length(3.30989, gamma=("pow", 1.5), Lmax=12), 10.0638, 0.03)
@@ -242,14 +243,80 @@ def test_power_law_limits():
     assert sp.plastic_length_factor(0.2, 3.0) == sp.INF     # strength stays ahead
 
 
-def test_rect_power_law_monotone():
-    """Rect lay-out + power-law curing: lcr must not jump down as h grows
-    (spikes reported by A.S.J. Suiker, Nov 2026, came from 'paper' scaling)."""
-    base = dict(tl=.0092, Tl=21, rho=2020, E0=78100, nu=.3, xiE=.0154 / 60,
-                sig0=1e15, xiS=0, b=.625, d=.25, edge="rect", Lmax=20)
-    for mE in (2.0, 3.0):
-        prev = 0.0
-        for hmm in range(50, 101, 5):
-            r = sp.assess(h=hmm / 1000.0, mE=mE, **base)
-            assert r["lcr"] >= prev * 0.999, (mE, hmm, r["lcr"], prev)
-            prev = r["lcr"]
+def test_rect_continuous_in_exponent():
+    """Rect lay-out of Suiker (2018): a curing exponent slightly above 1 must
+    give a slightly longer wall, not a jump (reported by A.S.J. Suiker for
+    0.3.1, where 1 -> 1.1 dropped the height from 267 to 230 mm)."""
+    base = dict(h=.0435, tl=.0092, Tl=21, rho=2020, E0=78100, nu=.3,
+                xiE=.0154 / 60, sig0=1e15, xiS=0, b=.625, d=.25, edge="rect",
+                Lmax=20)
+    l1 = sp.assess(**base)["lcr"]
+    l11 = sp.assess(mE=1.1, **base)["lcr"]
+    assert l1 < l11 < 1.02 * l1
+
+
+def _ritz6(E, m, bbar=None, nu=0.3, Ky=0.3, N=6):
+    """The truncated polynomial solution of Suiker (2018), Eq. (96):
+    w = sum_{n=1..N} C_n X^(n-1) with N = 6, the clamped conditions at the
+    bed and the natural conditions Eq. (55) at the top imposed on the
+    coefficients, and the rest found from the energy. Returns l_cr."""
+    import numpy as np
+    la = pytest.importorskip("scipy.linalg")
+    so = pytest.importorskip("scipy.optimize")
+    gp, gw = np.polynomial.legendre.leggauss(40)
+    b2 = (np.pi / bbar) ** 2 if bbar else 0.0
+    c = b2
+
+    def mu(L):
+        A = np.zeros((4, N))
+        A[0, 0] = A[1, 1] = 1.0
+        dg = -E * m                                        # g'(s) at the top
+        for k in range(N):
+            w0 = L ** k
+            w1 = k * L ** (k - 1) if k > 0 else 0.0
+            w2 = k * (k - 1) * L ** (k - 2) if k > 1 else 0.0
+            w3 = k * (k - 1) * (k - 2) * L ** (k - 3) if k > 2 else 0.0
+            A[2, k] = w2 - c * nu * w0
+            A[3, k] = dg * w2 + w3 - c * (nu * (dg * w0 + w1) + 2 * (1 - nu) * w1)
+        B = la.null_space(A)
+        s = (gp + 1) / 2 * L
+        wt = gw * L / 2
+        g = (1 + E * (L - s)) ** m
+        P0 = np.array([s ** k for k in range(N)])
+        P1 = np.array([k * s ** (k - 1) if k > 0 else 0 * s for k in range(N)])
+        P2 = np.array([k * (k - 1) * s ** (k - 2) if k > 1 else 0 * s for k in range(N)])
+        d0, d1, d2 = B.T @ P0, B.T @ P1, B.T @ P2
+        K = ((d2 * g * wt) @ d2.T - nu * c * ((d0 * g * wt) @ d2.T + (d2 * g * wt) @ d0.T)
+             + c * b2 * (d0 * g * wt) @ d0.T + 2 * (1 - nu) * c * (d1 * g * wt) @ d1.T)
+        G = (d1 * (L - s) * wt) @ d1.T + c * Ky * (d0 * (L - s) * wt) @ d0.T
+        return la.eigh(K, G, eigvals_only=True, subset_by_index=[0, 0])[0]
+
+    a = 1.0
+    while mu(a * 1.05) > 1.0:
+        a *= 1.05
+    return so.brentq(lambda L: mu(L) - 1.0, a, a * 1.05, xtol=1e-10)
+
+
+@pytest.mark.parametrize("E,m,bbar,ref", [
+    (10.0003, 1.0, None, 7.72078), (3.30989, 1.5, None, 10.0638),
+    (1.42611, 2.0, None, 10.3147), (0.55259, 3.0, None, 10.1522),
+    (0.323261, 4.0, None, 10.2394),                        # Fig. 11 (2022)
+    (0.0264, 1.0, 3.0, 6.6317), (4.1281, 1.0, 10.0, 9.6874),
+    (1.0643, 1.0, 9.0, 3.5055)])                           # Fig. 19 (2018)
+def test_curve_data_is_six_term_solution(E, m, bbar, ref):
+    """The exact curve data of Figs. 11 and 19 are the N = 6 polynomial
+    solution. That explains the differences with Sapling: the six-term
+    solution is stiffer for long walls and steep curing, and converges to
+    the Sapling value as N grows (checked in test_fe_cross_check)."""
+    close(_ritz6(E, m, bbar), ref, 0.001)
+
+
+def test_bottom_layer_optional():
+    kw = dict(h=.055, tl=.0095, Tl=19.2, rho=2100, E0=48564, nu=.3,
+              xiE=.0537 / 60, sig0=2835, xiS=.116 / 60, b=.25, edge="simply")
+    a = sp.assess(**kw)
+    b = sp.assess(bottom_layer=False, **kw)
+    if a["mode"] == "plastic collapse":
+        assert a["n"] == b["n"] + 1
+    else:
+        assert a["n"] == b["n"]

@@ -135,6 +135,7 @@
     if (state.preset) { state.presetNote = null; state.preset = null; $("preset").value = "custom"; }
     syncInputs(); scheduleCompute();
   }
+  var bottomLayer = true;          // +1 constrained bottom layer for plastic collapse (Suiker et al. 2020)
   var pending = false;
   function scheduleCompute() {
     if (pending) return; pending = true;
@@ -146,7 +147,7 @@
 
   function params(over) {
     var p = { h: state.h / 1000, tl: state.tl / 1000, Tl: state.Tl, rho: state.rho, E0: state.E0 * 1000, nu: state.nu,
-              xiE: state.xiE / 60, sig0: state.sig0 * 1000, xiS: state.xiS / 60 };
+              xiE: state.xiE / 60, sig0: state.sig0 * 1000, xiS: state.xiS / 60, bottomLayer: bottomLayer };
     if (state.layout === "free") p.edge = "free";
     else if (state.layout === "square") { p.edge = "simply"; p.b = state.b / 1000; }
     else { p.edge = "rect"; p.b = Math.max(state.b, state.d) / 1000; p.d = Math.min(state.b, state.d) / 1000; }
@@ -331,7 +332,8 @@
         "<h3>Fails at layer " + r.n + "</h3>" +
         "<p>Critical height " + mm(r.H) + " mm, reached after " + clock(r.H / r.ldot) + " of printing. " +
         (buck ? "The wall is too slender for its weight and bends sideways." :
-          "The bottom layer yields under the weight above it. Layer " + r.n + " = ⌈l<sub>p</sub>/t<sub>l</sub>⌉ + 1 = ⌈" + fmt(r.lp * 1000 / tl, 2) + "⌉ + 1: the first layer sticks to the bed and does not take part in the collapse, so one layer is added (Suiker et al. 2020, Sec. 2.2).") + "</p>";
+          (bottomLayer ? "The bottom layer yields under the weight above it. Layer " + r.n + " = ⌈l<sub>p</sub>/t<sub>l</sub>⌉ + 1 = ⌈" + fmt(r.lp * 1000 / tl, 2) + "⌉ + 1: one layer is added because the first layer sticks to the bed and hardly deforms, as observed by Suiker et al. (2020, Sec. 2.2). You can switch this off under Print." :
+            "The bottom layer yields under the weight above it. Layer " + r.n + " = ⌈l<sub>p</sub>/t<sub>l</sub>⌉ = ⌈" + fmt(r.lp * 1000 / tl, 2) + "⌉, without the extra bottom layer.")) + "</p>";
     }
     if (band) {
       var nm = function (n) { return n === null ? "no failure" : "layer " + n; }, same = band.lo === band.hi && band.lo === r.n;
@@ -351,7 +353,7 @@
     $("bars").innerHTML =
       row("Elastic buckling l<sub>cr</sub>", r.lcr, r.mode === "elastic buckling", "none below " + mm(r.limit) + " mm") +
       row("Plastic collapse l<sub>p</sub>", r.lp, r.mode === "plastic collapse", "never: strength outgrows the load") +
-      '<p class="hint">The shorter of the two heights decides. For plastic collapse the failure layer adds one constrained bottom layer to l<sub>p</sub>/t<sub>l</sub>.</p>';
+      '<p class="hint">The shorter of the two heights decides.' + (bottomLayer ? ' For plastic collapse the failure layer adds one constrained bottom layer to l<sub>p</sub>/t<sub>l</sub>.' : '') + '</p>';
 
     $("shapeWrap").style.display = r.shape ? "" : "none";
     if (r.shape) {
@@ -1049,6 +1051,7 @@
     var job = ++jobs; $("askOut").textContent = "Calculating…"; $("askUse").disabled = true;
     setTimeout(function () { if (job === jobs) { solveTarget(job); if (!chartData) sweep(job); } }, 60);
   });
+  $("bottomLayer").addEventListener("change", function (e) { bottomLayer = e.target.checked; scheduleCompute(); });
   $("askUse").addEventListener("click", function () { if (askTl === null) return; state.Tl = askTl; changed(); });
   var framed = false; try { framed = window.top !== window.self; } catch (errF) { framed = true; }
   if (!framed && navigator.clipboard) {

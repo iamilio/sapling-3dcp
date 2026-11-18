@@ -1,5 +1,5 @@
 """
-Sapling 0.3.1 - buildability check for 3D concrete printing
+Sapling 0.3.2 - buildability check for 3D concrete printing
 GhPython component (Rhino 7 IronPython / Rhino 8 CPython) and plain module.
 
 Implements the parametric model of Suiker (2018) for elastic buckling and
@@ -56,7 +56,7 @@ OUTPUTS:
 from __future__ import division
 import math
 
-__version__ = "0.3.1"
+__version__ = "0.3.2"
 
 G = 9.81
 INF = float("inf")
@@ -313,20 +313,20 @@ def plastic_length_factor(abar, n=1.0):
 
 
 def assess(h, tl, Tl, rho, E0, nu, xiE, sig0, xiS, b=None, edge="free",
-           gammaE=None, d=None, Ky=None, scaling="auto", Lmax=60.0,
-           betaE=None, mE=None, nS=None):
+           gammaE=None, d=None, Ky=None, scaling="paper", Lmax=60.0,
+           betaE=None, mE=None, nS=None, bottom_layer=True):
     """SI units in, dict out.
+    bottom_layer: add one layer to plastic collapse for the constrained,
+    fully sticking bottom layer (Suiker et al. 2020, Sec. 2.2). This is an
+    experimental observation, not a model outcome, so it can be switched off.
     mE: exponent of power-law stiffness curing, E = E0 (1 + xiE t)^mE.
     nS: exponent of power-law strength curing, sig = sig0 (1 + xiS t)^nS."""
     if betaE:
         gammaE = ("quad", float(betaE))
     if mE and abs(float(mE) - 1.0) > 1e-12:
         gammaE = ("pow", float(mE))
-    # Rect lay-out: the 'paper' rotational-stiffness scaling is the
-    # linear-curing form of Eq. (67). For non-linear curing it gives spurious
-    # jumps in lcr vs h, so 'auto' uses the dimensionally consistent form there.
     if scaling in (None, "", "auto"):
-        scaling = "paper" if gammaE is None else "consistent"
+        scaling = "paper"
     ldot = tl / Tl
     D0 = E0 * h ** 3 / (12 * (1 - nu ** 2))
     L0 = (D0 / (rho * G * h)) ** (1.0 / 3)
@@ -343,8 +343,9 @@ def assess(h, tl, Tl, rho, E0, nu, xiE, sig0, xiS, b=None, edge="free",
         H, mode, n = None, "no failure predicted", None
     elif lcr < lp:
         H, mode, n = lcr, "elastic buckling", int(math.ceil(lcr / tl))
-    else:  # +1 layer: constrained bottom layer (CCR 2020, Sec. 2.2)
-        H, mode, n = lp, "plastic collapse", int(math.ceil(lp / tl)) + 1
+    else:  # optional +1 layer: constrained bottom layer (CCR 2020, Sec. 2.2)
+        H, mode, n = lp, "plastic collapse", \
+            int(math.ceil(lp / tl)) + (1 if bottom_layer else 0)
     shape = None
     if mode == "elastic buckling":
         shape = mode_shape(lcr / L0, Ebar, bbar, edge, nu, gammaE, Ky, dbar,
@@ -360,9 +361,11 @@ def assess(h, tl, Tl, rho, E0, nu, xiE, sig0, xiS, b=None, edge="free",
                     "walls in Wolfs & Suiker 2019" % (H / ldot / 60.0))
     if edge == "rect" and gammaE is not None:
         warn.append("rectangular lay-out with non-linear curing is outside "
-                    "the published formulas (Eq. 67 is for linear curing); "
-                    "the corner stiffness uses the dimensionally consistent "
-                    "scaling (scaling='%s')" % scaling)
+                    "the published formulas (Eq. 67 is for linear curing)")
+    if edge == "rect":
+        warn.append("rectangular lay-out: the critical height can jump with "
+                    "small changes of the inputs, where two buckling roots of "
+                    "the equations merge and vanish; check the sensitivity")
     return dict(ldot=ldot, D0=D0, L0=L0, Ebar=Ebar, bbar=bbar, abar=abar,
                 lcr=lcr, lp=lp, H=H, mode=mode, n=n, limit=limit * L0,
                 warnings=warn, shape=shape)
@@ -388,8 +391,9 @@ def _gh_main():
               b=None if bb is None else bb / 1000.0, edge=edge,
               gammaE=val("gammaE"),
               d=None if dd is None else dd / 1000.0, Ky=val("Ky"),
-              scaling=(val("RectScaling", "auto") or "auto").strip().lower(),
-              betaE=val("betaE"), mE=val("mE"), nS=val("nS"))
+              scaling=(val("RectScaling", "paper") or "paper").strip().lower(),
+              betaE=val("betaE"), mE=val("mE"), nS=val("nS"),
+              bottom_layer=val("BottomLayer", True) is not False)
     # Results are kept per set of inputs, so returning to values that were
     # already solved (e.g. dragging a slider back) is immediate.
     try:
@@ -419,7 +423,7 @@ def _gh_main():
     else:
         lines.append("-> %s at %.0f mm (%d layers)"
                      % (r["mode"], r["H"] * 1000, r["n"]))
-        if r["mode"] == "plastic collapse":
+        if r["mode"] == "plastic collapse" and kw["bottom_layer"]:
             lines.append("   layers = ceil(lp/tl) + 1: the constrained bottom "
                          "layer (Suiker et al. 2020, Sec. 2.2)")
     for wmsg in r["warnings"]:
