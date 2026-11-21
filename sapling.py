@@ -1,5 +1,5 @@
 """
-Sapling 0.3.2 - buildability check for 3D concrete printing
+Sapling 0.3.3 - buildability check for 3D concrete printing
 GhPython component (Rhino 7 IronPython / Rhino 8 CPython) and plain module.
 
 Implements the parametric model of Suiker (2018) for elastic buckling and
@@ -56,7 +56,7 @@ OUTPUTS:
 from __future__ import division
 import math
 
-__version__ = "0.3.2"
+__version__ = "0.3.3"
 
 G = 9.81
 INF = float("inf")
@@ -325,6 +325,10 @@ def assess(h, tl, Tl, rho, E0, nu, xiE, sig0, xiS, b=None, edge="free",
         gammaE = ("quad", float(betaE))
     if mE and abs(float(mE) - 1.0) > 1e-12:
         gammaE = ("pow", float(mE))
+    if edge == "rect" and gammaE is not None:
+        raise ValueError("rectangular lay-out: linear curing only (the corner "
+                         "stiffness, Eq. 67 of Suiker 2018, is derived for "
+                         "linear curing)")
     if scaling in (None, "", "auto"):
         scaling = "paper"
     ldot = tl / Tl
@@ -359,13 +363,11 @@ def assess(h, tl, Tl, rho, E0, nu, xiE, sig0, xiS, b=None, edge="free",
         warn.append("failure after %.0f min of printing: linear curing is "
                     "calibrated for short sessions and underestimated long "
                     "walls in Wolfs & Suiker 2019" % (H / ldot / 60.0))
-    if edge == "rect" and gammaE is not None:
-        warn.append("rectangular lay-out with non-linear curing is outside "
-                    "the published formulas (Eq. 67 is for linear curing)")
     if edge == "rect":
-        warn.append("rectangular lay-out: the critical height can jump with "
-                    "small changes of the inputs, where two buckling roots of "
-                    "the equations merge and vanish; check the sensitivity")
+        warn.append("rectangular lay-out: where two roots of the buckling "
+                    "determinant lie very close together the root search can "
+                    "jump to a larger height; if a thicker wall gives a lower "
+                    "height, treat the result with care")
     return dict(ldot=ldot, D0=D0, L0=L0, Ebar=Ebar, bbar=bbar, abar=abar,
                 lcr=lcr, lp=lp, H=H, mode=mode, n=n, limit=limit * L0,
                 warnings=warn, shape=shape)

@@ -65,7 +65,7 @@
   var LAYOUT_HINT = {
     free: "A straight wall with free ends. It buckles as a whole.",
     square: "Four equal walls. Each wall is held along its two corners (simply supported).",
-    rect: "Long and short walls. The short walls hold the long ones with a stiffness that changes over the height."
+    rect: "Long and short walls. The short walls hold the long ones with a stiffness that changes over the height. Linear curing only: the corner stiffness, Eq. (67) of Suiker (2018), is derived for linear curing."
   };
 
   var state = {};
@@ -109,6 +109,10 @@
   }
 
   function syncInputs() {
+    // Rect: Eq. (67) of Suiker (2018) is derived for linear curing only
+    if (state.layout === "rect" && state.curing !== "linear") state.curing = "linear";
+    var cs = $("in-curing");
+    if (cs) Array.prototype.forEach.call(cs.options, function (o) { o.disabled = state.layout === "rect" && o.value !== "linear"; });
     Object.keys(FIELDS).forEach(function (k) {
       FIELDS[k].forEach(function (f) {
         var el = $("in-" + f.id); if (!el) return;
@@ -238,23 +242,44 @@
         pts.push({ h: xs[k], lcr: r && r.lcr !== Infinity ? r.lcr * 1000 : null });
       }
       if (k < xs.length) { setTimeout(chunk, 0); return; }
+      markSpikes(pts);
       chartData = { pts: pts, lp: result.lp === Infinity ? null : result.lp * 1000 };
       drawChart();
     }
     chunk();
   }
+  // A thicker wall cannot buckle lower. Points above a later (thicker) value
+  // are where the root search jumped to the wrong root (rect layouts; see
+  // A.S.J. Suiker's advice): they are bridged by a dashed trend line between
+  // the reliable neighbours, not drawn as spikes.
+  function markSpikes(pts) {
+    var low = Infinity, i, j;
+    for (i = pts.length - 1; i >= 0; i--) {
+      var q = pts[i]; q.bad = false;
+      if (q.lcr === null) continue;
+      if (q.lcr > low * 1.001) q.bad = true; else low = q.lcr;
+    }
+    for (i = 0; i < pts.length; i++) {
+      if (!pts[i].bad) { pts[i].est = pts[i].lcr; continue; }
+      var a = i - 1, b = i + 1;
+      while (a >= 0 && (pts[a].bad || pts[a].lcr === null)) a--;
+      while (b < pts.length && (pts[b].bad || pts[b].lcr === null)) b++;
+      if (a < 0 || b >= pts.length) { pts[i].est = null; continue; }
+      pts[i].est = pts[a].lcr + (pts[b].lcr - pts[a].lcr) * (pts[i].h - pts[a].h) / (pts[b].h - pts[a].h);
+    }
+  }
   function drawChart() {
     var d = chartData, host = $("chart"); if (!d) return;
     var W = 284, H = 190, L = 38, R = 10, T = 12, B = 30, lp = d.lp;
-    var known = d.pts.filter(function (q) { return q.lcr !== null; });
-    var top = Math.max.apply(null, known.map(function (q) { return q.lcr; }).concat(lp ? [lp] : [0]));
+    var known = d.pts.filter(function (q) { return q.est !== null && q.est !== undefined; });
+    var top = Math.max.apply(null, known.map(function (q) { return q.est; }).concat(lp ? [lp] : [0]));
     if (lp) top = Math.min(top, lp * 2.1);
     if (!(top > 0)) { host.innerHTML = '<p class="hint">No failure is predicted for any wall thickness between 25 and 100 mm.</p>'; return; }
     top *= 1.08;
     var niceStep = [50, 100, 200, 250, 500, 1000, 2000, 5000].filter(function (v) { return top / v <= 4.5; })[0] || 10000;
     function X(h) { return L + (W - L - R) * (h - 25) / 75; }
     function Y(v) { return T + (H - T - B) * (1 - Math.min(v, top) / top); }
-    var gov = function (q) { var a = q.lcr === null ? Infinity : q.lcr, b = lp === null ? Infinity : lp; return Math.min(a, b); };
+    var gov = function (q) { var a = (q.est === null || q.est === undefined) ? Infinity : q.est, b = lp === null ? Infinity : lp; return Math.min(a, b); };
     var svg = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="Critical height against wall thickness">';
     for (var v = 0; v <= top; v += niceStep) svg += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(v) + '" y2="' + Y(v) + '" stroke="var(--line)" stroke-width="1"/><text x="' + (L - 5) + '" y="' + (Y(v) + 3.5) + '" text-anchor="end">' + v + "</text>";
     [25, 50, 75, 100].forEach(function (hx) { svg += '<text x="' + X(hx) + '" y="' + (H - B + 14) + '" text-anchor="middle">' + hx + "</text>"; });
@@ -264,9 +289,17 @@
     d.pts.forEach(function (q) { var g = gov(q); area += " L" + X(q.h).toFixed(1) + "," + Y(g === Infinity ? top : g).toFixed(1); });
     svg += '<path d="' + area + " L" + X(100) + "," + Y(0) + ' Z" fill="var(--accent-soft)"/>';
     if (lp && lp <= top) svg += '<line x1="' + L + '" x2="' + (W - R) + '" y1="' + Y(lp) + '" y2="' + Y(lp) + '" stroke="var(--s2)" stroke-width="2" stroke-dasharray="6 4"/>';
-    var line = "", pen = false;
-    d.pts.forEach(function (q) { if (q.lcr === null || q.lcr > top) { pen = false; return; } line += (pen ? " L" : " M") + X(q.h).toFixed(1) + "," + Y(q.lcr).toFixed(1); pen = true; });
+    var line = "", dash = "", pen = false, prev = null, anyBad = false;
+    d.pts.forEach(function (q) {
+      if (q.est === null || q.est === undefined || q.est > top) { pen = false; prev = null; return; }
+      var xy = X(q.h).toFixed(1) + "," + Y(q.est).toFixed(1);
+      if (q.bad) { anyBad = true; if (prev) dash += " M" + prev; dash += " L" + xy; pen = false; }
+      else { if (prev && !pen) dash += " L" + xy; line += (pen ? " L" : " M") + xy; pen = true; }
+      prev = xy;
+    });
+    dash = dash.replace(/^ L[^M]*/, "");
     svg += '<path d="' + line + '" fill="none" stroke="var(--s1)" stroke-width="2" stroke-linejoin="round"/>';
+    if (dash) svg += '<path d="' + dash + '" fill="none" stroke="var(--s1)" stroke-width="2" stroke-dasharray="4 3"/>';
     // where buckling hands over to plastic collapse
     var cross = null;
     if (lp) for (var i = 1; i < d.pts.length; i++) {
@@ -282,7 +315,11 @@
     svg += '<line x1="' + X(cur) + '" x2="' + X(cur) + '" y1="' + T + '" y2="' + (H - B) + '" stroke="var(--ink)" stroke-width="1" stroke-dasharray="2 3"/>';
     if (gh !== null && gh <= top) svg += '<circle cx="' + X(cur) + '" cy="' + Y(gh) + '" r="4.5" fill="var(--fail)" stroke="var(--panel)" stroke-width="2"/>';
     svg += '<line id="chartHover" x1="0" x2="0" y1="' + T + '" y2="' + (H - B) + '" stroke="var(--muted)" stroke-width="1" visibility="hidden"/></svg>';
-    var def = "This wall: " + fmt(state.h, 1) + " mm thick" + (gh === null ? ", no failure predicted." : ", fails at " + fmt(gh, 0) + " mm.") + " Point at the chart to read other thicknesses; click to use one.";
+    var curBad = d.pts.some(function (q) { return q.bad && Math.abs(q.h - state.h) <= 2.5; });
+    var def = "This wall: " + fmt(state.h, 1) + " mm thick" + (gh === null ? ", no failure predicted." : ", fails at " + fmt(gh, 0) + " mm.") +
+      (anyBad ? " Dashed: no reliable buckling solution was found there (the root search picks a wrong root); the line shows the expected trend." : "") +
+      (curBad ? " This thickness is in that range, so treat the buckling height above with care." : "") +
+      " Point at the chart to read other thicknesses; click to use one.";
     host.innerHTML = '<p class="key"><span><i></i>Elastic buckling</span><span><i class="p"></i>Plastic collapse</span><span><i class="a"></i>Printable</span></p>' + svg + '<p class="read hint" id="chartRead">' + def + "</p>";
     var el = host.querySelector("svg"), hov = el.querySelector("#chartHover");
     function hAt(e) { var r = el.getBoundingClientRect(); var hx = 25 + 75 * ((e.clientX - r.left) / r.width * W - L) / (W - L - R); return Math.max(25, Math.min(100, Math.round(hx / 2.5) * 2.5)); }
@@ -290,8 +327,8 @@
       var hx = hAt(e), q = d.pts[Math.round((hx - 25) / 2.5)]; if (!q) return;
       hov.setAttribute("x1", X(hx)); hov.setAttribute("x2", X(hx)); hov.setAttribute("visibility", "visible");
       var g = gov(q);
-      $("chartRead").textContent = fmt(hx, 1) + " mm thick: buckling at " + (q.lcr === null ? "more than " + fmt(20 * result.L0 * 1000, 0) : fmt(q.lcr, 0)) + " mm, plastic collapse at " +
-        (lp === null ? "no height" : fmt(lp, 0) + " mm") + ". " + (g === Infinity ? "No failure." : (q.lcr !== null && (lp === null || q.lcr < lp) ? "Buckling decides." : "Plastic collapse decides."));
+      $("chartRead").textContent = fmt(hx, 1) + " mm thick: buckling at " + (q.lcr === null ? "more than " + fmt(20 * result.L0 * 1000, 0) : (q.bad ? "about " + (q.est === null ? "?" : fmt(q.est, 0)) + " (no reliable solution, trend)" : fmt(q.lcr, 0))) + " mm, plastic collapse at " +
+        (lp === null ? "no height" : fmt(lp, 0) + " mm") + ". " + (g === Infinity ? "No failure." : (q.est !== null && (lp === null || q.est < lp) ? "Buckling decides." : "Plastic collapse decides."));
     });
     el.addEventListener("pointerleave", function () { hov.setAttribute("visibility", "hidden"); $("chartRead").textContent = def; });
     el.addEventListener("click", function (e) { state.h = hAt(e); changed(); });

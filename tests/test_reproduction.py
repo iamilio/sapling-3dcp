@@ -243,16 +243,16 @@ def test_power_law_limits():
     assert sp.plastic_length_factor(0.2, 3.0) == sp.INF     # strength stays ahead
 
 
-def test_rect_continuous_in_exponent():
-    """Rect lay-out of Suiker (2018): a curing exponent slightly above 1 must
-    give a slightly longer wall, not a jump (reported by A.S.J. Suiker for
-    0.3.1, where 1 -> 1.1 dropped the height from 267 to 230 mm)."""
+def test_rect_linear_curing_only():
+    """Eq. (67) of Suiker (2018) is derived for linear curing, so the
+    rectangular lay-out refuses other curing laws (advice of A.S.J. Suiker)."""
     base = dict(h=.0435, tl=.0092, Tl=21, rho=2020, E0=78100, nu=.3,
                 xiE=.0154 / 60, sig0=1e15, xiS=0, b=.625, d=.25, edge="rect",
                 Lmax=20)
-    l1 = sp.assess(**base)["lcr"]
-    l11 = sp.assess(mE=1.1, **base)["lcr"]
-    assert l1 < l11 < 1.02 * l1
+    assert sp.assess(**base)["mode"] == "elastic buckling"
+    for extra in (dict(mE=1.1), dict(betaE=2.5), dict(gammaE=5.0)):
+        with pytest.raises(ValueError):
+            sp.assess(**dict(base, **extra))
 
 
 def _ritz6(E, m, bbar=None, nu=0.3, Ky=0.3, N=6):

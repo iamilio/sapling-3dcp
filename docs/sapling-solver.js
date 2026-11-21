@@ -213,6 +213,8 @@
     var gammaE = (p.gammaE === undefined) ? null : p.gammaE;
     if (p.betaE) gammaE = { quad: +p.betaE };
     if (p.mE && Math.abs(+p.mE - 1) > 1e-12) gammaE = { pow: +p.mE };
+    if ((p.edge || "free") === "rect" && gammaE !== null)
+      throw new Error("Rectangular layout: linear curing only (Eq. 67 of Suiker 2018 is derived for linear curing).");
     var Lmax = p.Lmax === undefined ? 60.0 : p.Lmax;
     var edge = p.edge || "free", scaling = p.scaling || "paper";
     if (scaling === "auto") scaling = "paper";
@@ -238,16 +240,14 @@
       warn.push("Clamped wall at a high curing rate: the model overestimates finite-element results by up to 15% (Wolfs & Suiker 2019, Sec. 3.2). 'Simply supported' is the safe bound.");
     if (H !== null && gammaE === null && H / ldot > 1200.0)
       warn.push("Failure after " + (H / ldot / 60).toFixed(0) + " min of printing: linear curing is calibrated for short sessions and underestimated long walls in Wolfs & Suiker 2019.");
-    if (edge === "rect" && gammaE !== null)
-      warn.push("Rectangular layout with non-linear curing is outside the published formulas (Eq. 67 is for linear curing).");
     if (edge === "rect")
-      warn.push("Rectangular layout: the critical height can jump with small changes of the inputs. There, two buckling roots of the equations merge and vanish, which shows as spikes in the chart against wall thickness. This is a property of the equations, not a rounding error; check the ±10% band.");
+      warn.push("Rectangular layout: where two roots of the buckling determinant lie very close together, the root search can jump to a larger height. In the chart against wall thickness such points are bridged by a dashed trend line.");
     return { ldot: ldot, D0: D0, L0: L0, Ebar: Ebar, bbar: bbar, abar: abar, lcr: lcr, lp: lp,
              H: H, mode: mode, n: n, limit: limit * L0, warnings: warn, shape: shape };
   }
 
   var api = { G: G, criticalLength: criticalLength, modeShape: modeShape, assess: assess,
-              plasticLengthFactor: plasticLengthFactor, nyOfKr: nyOfKr, cyOfKr: cyOfKr, version: "0.3.2" };
+              plasticLengthFactor: plasticLengthFactor, nyOfKr: nyOfKr, cyOfKr: cyOfKr, version: "0.3.3" };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.SaplingSolver = api;
 })(typeof self !== "undefined" ? self : this);
