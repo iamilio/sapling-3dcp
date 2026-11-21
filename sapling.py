@@ -2,10 +2,11 @@
 Sapling 0.3.3 - buildability check for 3D concrete printing
 GhPython component (Rhino 7 IronPython / Rhino 8 CPython) and plain module.
 
-Implements the parametric model of Suiker (2018) for elastic buckling and
-plastic collapse of a straight printed wall, with the extensions of
-Wolfs & Suiker (2019), Suiker et al. (2020) and the power-law (accelerated)
-curing of Suiker (2022). Pure Python, no numpy/scipy.
+Implements the parametric model of A.S.J. Suiker for elastic buckling and
+plastic collapse of a straight printed wall: Suiker (2018) for linear and
+exponentially decaying curing, Suiker (2022) for power-law (accelerated)
+curing. The quadratic curing law and the validation cases come from
+Wolfs & Suiker (2019) and Suiker et al. (2020). Pure Python, no numpy/scipy.
 
 Use in Grasshopper: paste this whole file into a Python script component.
 Use as a module:    import sapling; sapling.assess(...)   (SI units)

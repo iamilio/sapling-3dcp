@@ -99,7 +99,7 @@ python -m pytest tests
 
 - 26 dimensionless buckling lengths, including the cases compared with finite-element analysis in Wolfs & Suiker (2019).
 - 10 failure-layer cases, covering the printed walls of the 2018, 2019 and 2020 papers.
-- Power-law (accelerated) curing of Suiker (2022). The plastic collapse rule is Eq. (25) of that paper. With exponent 1 the law reproduces linear curing exactly, and with exponent 2 it reproduces the quadratic law exactly.
+- Power-law (accelerated) curing of Suiker (2022). The plastic collapse rule is Eq. (25) of that paper. With exponent 1 the law reproduces linear curing exactly. With exponent 2 it equals the quadratic law of Wolfs & Suiker (2019) with coefficient 1/4 at twice the curing rate, since (1 + a/2)² = 1 + a + a²/4.
 - An independent finite-element check (Hermite beam elements on the energy of the same plate-strip equations) agrees with the shooting solver to within 0.2% for free and simply supported walls, linear and power-law curing.
 
 **Comparison with the exact curve data of Suiker.** Prof. Suiker kindly sent the numerical data behind Fig. 11 of the 2022 paper and Fig. 19 of the 2018 paper. An earlier version of this README compared against values read from the graph and reported 1 to 4% agreement; the exact data show a larger spread, so the full picture is given here. Differences are in the buckling length at the end of each curve; Sapling is lower in every case.
@@ -123,7 +123,7 @@ These tests show that the implementation matches the published model. They are *
 - **Long print sessions.** With linear curing the model underestimated walls printed for more than about 20 minutes (24 layers predicted against 46 observed for a 10.4 m wall). Sapling warns in this range.
 - **Clamped walls.** At high curing rates the model exceeds finite-element results by up to 15%. Sapling warns; `simply` is the safe bound.
 - **Imperfections** are not modelled.
-- **Rectangular layouts, jumps.** Where two roots of the buckling determinant lie very close together, the root search can lose them and jump to a much larger critical height; Prof. Suiker met the same difficulty when solving the equations in 2018. A thicker wall cannot buckle at a lower height, so the web chart bridges such points with a dashed line that shows the expected trend, and Sapling warns for rectangular layouts.
+- **Rectangular layouts, jumps.** Where two roots of the buckling determinant lie very close together, the root search can lose them and jump to a much larger critical height. A thicker wall cannot buckle at a lower height, so the web chart bridges such points with a dashed line that shows the expected trend, and Sapling warns for rectangular layouts.
 - **Plastic collapse** uses linear or power-law strength curing. The effect of vertical layer deformations (Suiker 2022, Sec. 3) is not included.
 - **Power-law curing** is checked for free walls. For exponents of 3 and higher the buckling length rises very steeply with the curing rate, so a small error in the measured rate moves the result a lot.
 - **Rectangular layouts** require equal wall thickness and linear curing. The corner stiffness, Eq. (67) of Suiker (2018), is derived for linear curing, so Sapling refuses other curing laws for this layout.
