@@ -32,10 +32,10 @@
       note: "The printed wall buckled at 46 layers. The coefficient 2.5 was fitted by the authors to this wall, so the match is a fit and not a prediction. One metre of the wall is drawn." },
     { name: "Accelerated mortar, square 500 mm (material of Deetman & Suiker 2026)", layout: "square", b: 500, h: 55, tl: 9.5, Tl: 19.2,
       rho: 2100, E0: 83, xiE: 0.024, sig0: 5.505, xiS: 0.02, curing: "power", mE: 3, nS: 3, paper: null, observed: [],
-      note: "A prediction, not a reproduction: no wall was printed with this mortar in the paper. Stiffness and cohesion follow power laws with exponent 3, measured by indentation tests; the yield strength is the cohesion of 1.72 kPa at a friction angle of 26°. The density of 2100 kg/m³ is assumed, and the wall and print settings are those of the 500 mm example. Compression tests on the same mortar gave slower curing (0.020 and 0.015 per minute), which gives 46 layers." },
-    { name: "Wall 690 mm, no failure (Suiker et al. 2020)", layout: "square", b: 690, h: 55, tl: 9.5, Tl: 88,
+      note: "A prediction, not a reproduction: no wall was printed with this mortar in the paper. Stiffness and cohesion follow power laws with exponent 3, measured by indentation tests; the uniaxial yield strength of 5.5 kPa follows from the cohesion of 1.72 kPa and the friction angle of 26° through the Mohr–Coulomb relation 2c cos φ / (1 − sin φ), which is our assumption. The density of 2100 kg/m³ is assumed, and the wall and print settings are those of the 500 mm example. Compression tests on the same mortar gave slower curing (0.020 and 0.015 per minute), which gives 46 layers." },
+    { name: "Picnic table, wall 690 mm, no failure (Suiker et al. 2020)", layout: "square", b: 690, h: 55, tl: 9.5, Tl: 88,
       rho: 2100, E0: 55, xiE: 0.42, sig0: 2.835, xiS: 0.116, paper: null, observed: [], layers: 80,
-      note: "Second material batch of the paper, printed slowly. The real object was printed to 80 layers (760 mm) without failing. The wall is drawn here as a square." }
+      note: "The longest wall of the picnic table in the paper (b = 690 mm), printed at 88 s per layer with the material parameters of the free walls printed on the same day. The table was printed to 80 layers (760 mm) without failing. The wall is computed as simply supported, the lower bound the paper also uses, and drawn here as a square." }
   ];
 
   var FIELDS = {

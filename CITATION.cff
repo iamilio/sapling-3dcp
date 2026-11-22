@@ -56,3 +56,25 @@ references:
     start: 106016
     year: 2020
     doi: 10.1016/j.cemconres.2020.106016
+  - type: article
+    title: "Effect of accelerated curing and layer deformations on structural failure during extrusion-based 3D printing"
+    authors:
+      - family-names: Suiker
+        given-names: A.S.J.
+    journal: "Cement and Concrete Research"
+    volume: 151
+    start: 106586
+    year: 2022
+    doi: 10.1016/j.cemconres.2021.106586
+  - type: article
+    title: "Characterization of early-age elastic-plastic properties of 3D printed materials using indentation testing"
+    authors:
+      - family-names: Deetman
+        given-names: A.H.
+      - family-names: Suiker
+        given-names: A.S.J.
+    journal: "International Journal of Mechanical Sciences"
+    volume: 310
+    start: 111141
+    year: 2026
+    doi: 10.1016/j.ijmecsci.2025.111141

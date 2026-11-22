@@ -120,7 +120,7 @@ These tests show that the implementation matches the published model. They are *
 ## Limitations
 
 - **Geometry.** Straight, vertical walls of uniform thickness only. Curved or zigzag paths affect the result only through the layer time.
-- **Long print sessions.** With linear curing the model underestimated walls printed for more than about 20 minutes (24 layers predicted against 46 observed for a 10.4 m wall). Sapling warns in this range.
+- **Long print sessions.** With a linear curing law calibrated on short-term tests, the predicted height was too low for walls printed for more than about 20 minutes (24 layers predicted against 46 observed for the 10.4 m wall of Wolfs & Suiker 2019), because the curing accelerated during the long session. Sapling warns in this range; quadratic or power-law curing describes this effect.
 - **Clamped walls.** At high curing rates the model exceeds finite-element results by up to 15%. Sapling warns; `simply` is the safe bound.
 - **Imperfections** are not modelled.
 - **Rectangular layouts, jumps.** Where two roots of the buckling determinant lie very close together, the root search can lose them and jump to a much larger critical height. A thicker wall cannot buckle at a lower height, so the web chart bridges such points with a dashed line that shows the expected trend, and Sapling warns for rectangular layouts.
@@ -137,7 +137,6 @@ Sapling is a research tool. Do not use it as the only basis for decisions that a
 - A.S.J. Suiker (2018). Mechanical performance of wall structures in 3D printing processes: theory, design tools and experiments. *International Journal of Mechanical Sciences* 137, 145-170. https://doi.org/10.1016/j.ijmecsci.2018.01.010
 - R.J.M. Wolfs, A.S.J. Suiker (2019). Structural failure during extrusion-based 3D printing processes. *International Journal of Advanced Manufacturing Technology* 104, 565-584. https://doi.org/10.1007/s00170-019-03844-6
 - A.S.J. Suiker, R.J.M. Wolfs, S.M. Lucas, T.A.M. Salet (2020). Elastic buckling and plastic collapse during 3D concrete printing. *Cement and Concrete Research* 135, 106016. https://doi.org/10.1016/j.cemconres.2020.106016
-
 - A.S.J. Suiker (2022). Effect of accelerated curing and layer deformations on structural failure during extrusion-based 3D printing. *Cement and Concrete Research* 151, 106586. https://doi.org/10.1016/j.cemconres.2021.106586
 - A.H. Deetman, A.S.J. Suiker (2026). Characterization of early-age elastic-plastic properties of 3D printed materials using indentation testing. *International Journal of Mechanical Sciences* 310, 111141. https://doi.org/10.1016/j.ijmecsci.2025.111141 (source of the accelerated mortar example in the web version)
 
